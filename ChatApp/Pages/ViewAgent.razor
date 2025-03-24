@@ -12,9 +12,9 @@
         justify-content: center;
         background-color: #3B82F6; /* Blue */
         color: white;
-        padding: 20px;
-        width: 150px;
-        height: 150px;
+        padding: 10px;
+        width: 120px;
+        height: 120px;
         border-radius: 20px; /* Rounded Square */
         transition: transform 0.3s, background-color 0.3s;
         text-align: center;
@@ -31,13 +31,13 @@
         }
 
     .button-number {
-        font-size: 2.5rem; /* Bigger Font */
+        font-size: 2rem; /* Bigger Font */
         font-weight: bold;
     }
 
     .button-caption {
         font-size: 0.875rem; /* Smaller Caption */
-        margin-top: 8px;
+        margin-top: 6px;
     }
 
     .button-group {
@@ -88,20 +88,20 @@
             <div class="button-caption">Mid Shift Agents</div>
         </div>
 
-        <!-- InactiveAgent Button -->
+        <!-- NightShift Button -->
+        <div class="button-container" style="background-color: #6366F1;" @onclick=@(() => FilterAgents("NightShift"))>
+            <div class="button-number">@NightShiftCount</div>
+            <div class="button-caption">Night Shift Agents</div>
+        </div>
+
+        <!-- Overflow Agent Button -->
         <div class="button-container" style="background-color: #D1D5DB; color: black;" @onclick=@(() => FilterAgents("Overflow"))>
             <div class="button-number">@OverflowCount</div>
-            <div class="button-caption">Overflow Agents</div>
+            <div class="button-caption">Overflow / No Schedule</div>
         </div>
     </div>
 </section>
 
-<ul>
-    @foreach (var agent in AgentsActiveChats)
-    {
-        <li>@agent.Name - @agent.AgentLevel - Active Chats: @agent.CurrentChats</li>
-    }
-</ul>
 
 <table class="table">
     <thead>
@@ -131,7 +131,6 @@
 
 @code {
     private List<Agent> Agents = new();
-    private List<Agent> AgentsActiveChats = new();
     private List<Agent> FilteredAgents = new();
     private string FilterType;
 
@@ -142,6 +141,7 @@
 
     private int DayShiftCount = 0;
     private int MidShiftCount = 0;
+    private int NightShiftCount = 0;
     private int OverflowCount = 0;
 
     private Timer _timer;
@@ -150,7 +150,6 @@
     {
         // Load data once when the component is initialized
         await GetAllAgent();
-        await GetAllActiveAgent();
 
         TotalAgent = GetTotalAgents();
         ActiveAgent = GetActiveAgents();
@@ -170,7 +169,6 @@
             _timer = new Timer(async _ => await ReloadData(), null, 0, 5000);
 
             await GetAllAgent();
-            await GetAllActiveAgent();
 
             TotalAgent = GetTotalAgents();
             ActiveAgent = GetActiveAgents();
@@ -199,7 +197,6 @@
     private async Task LoadData()
     {
         await GetAllAgent();
-        await GetAllActiveAgent();
 
         TotalAgent = GetTotalAgents();
         ActiveAgent = GetActiveAgents();
@@ -214,11 +211,6 @@
     private async Task GetAllAgent()
     {
         Agents = await Http.GetFromJsonAsync<List<Agent>>("api/agent/");
-    }
-
-    private async Task GetAllActiveAgent()
-    {
-        AgentsActiveChats = await Http.GetFromJsonAsync<List<Agent>>("api/agent/activechat");
     }
 
     private int GetTotalAgents()
@@ -245,7 +237,10 @@
     {
         DayShiftCount = Agents.Count(agent => agent.CurrentShift?.Name == ShiftSchedule.DayShift);
         MidShiftCount = Agents.Count(agent => agent.CurrentShift?.Name == ShiftSchedule.MidShift);
-        OverflowCount = Agents.Count(agent => agent.CurrentShift?.Name == ShiftSchedule.Overflow);
+        NightShiftCount = Agents.Count(agent => agent.CurrentShift?.Name == ShiftSchedule.NightShift);
+
+        // OverflowCount = Agents.Count(agent => agent.CurrentShift?.Name != ShiftSchedule.Overflow);
+        OverflowCount = Agents.Count(agent => agent.CurrentShift?.Name != ShiftSchedule.DayShift && agent.CurrentShift?.Name != ShiftSchedule.MidShift && agent.CurrentShift?.Name != ShiftSchedule.NightShift);
     }
 
     private void FilterAgents(string filterType)
@@ -260,7 +255,9 @@
             "ActiveChat" => Agents.Where(agent => agent.CurrentChats > 0).ToList(),
             "DayShift" => Agents.Where(agent => agent.CurrentShift?.Name == ShiftSchedule.DayShift).ToList(),
             "MidShift" => Agents.Where(agent => agent.CurrentShift?.Name == ShiftSchedule.MidShift).ToList(),
-            "Overflow" => Agents.Where(agent => agent.CurrentShift?.Name == ShiftSchedule.Overflow).ToList(),
+            "NightShift" => Agents.Where(agent => agent.CurrentShift?.Name == ShiftSchedule.NightShift).ToList(),
+            // "Overflow" => Agents.Where(agent => agent.CurrentShift?.Name == ShiftSchedule.Overflow).ToList(),
+            "Overflow" => Agents.Where(agent => agent.CurrentShift?.Name != ShiftSchedule.DayShift && agent.CurrentShift?.Name != ShiftSchedule.MidShift && agent.CurrentShift?.Name != ShiftSchedule.NightShift).ToList(),
             _ => Agents
         };
 
