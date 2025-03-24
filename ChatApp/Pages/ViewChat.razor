@@ -1,0 +1,176 @@
+﻿@page "/view-chats"
+@using ChatApp.Domain.Entities
+@using ChatApp.UI.Services
+@using static ChatApp.Domain.Enum.Enum
+@inject HttpClient Http
+@inject SignalRService SignalRService
+
+<style>
+    .button-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #3B82F6;
+        color: white;
+        padding: 20px;
+        width: 150px;
+        height: 150px;
+        border-radius: 20px;
+        transition: transform 0.3s, background-color 0.3s;
+        text-align: center;
+        margin-right: 20px;
+    }
+
+        .button-container:hover {
+            transform: scale(1.05);
+        }
+
+    .button-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+    }
+
+    .button-caption {
+        font-size: 0.875rem;
+        margin-top: 8px;
+    }
+
+    .button-group {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
+</style>
+
+<h3>Chat Status Summary</h3>
+
+<section class="agents p-4 space-y-4">
+    <div class="button-group">
+        <!-- All Chats Button -->
+        <div class="button-container" style="background-color: #3B82F6;" @onclick="@(() => FilterChats("All"))">
+            <div class="button-number">@TotalChats</div>
+            <div class="button-caption">Total Chats</div>
+        </div>
+
+        <!-- Pending Chats Button -->
+        <div class="button-container" style="background-color: #F59E0B;" @onclick="@(() => FilterChats(nameof(ChatStatus.Pending)))">
+            <div class="button-number">@PendingChats</div>
+            <div class="button-caption">Pending Chats</div>
+        </div>
+
+        <!-- Inactive Chats Button -->
+        <div class="button-container" style="background-color: #6B7280;" @onclick="@(() => FilterChats(nameof(ChatStatus.Inactive)))">
+            <div class="button-number">@InactiveChats</div>
+            <div class="button-caption">Inactive Chats</div>
+        </div>
+
+        <!-- Assigned Chats Button -->
+        <div class="button-container" style="background-color: #8B5CF6;" @onclick="@(() => FilterChats(nameof(ChatStatus.Assigned)))">
+            <div class="button-number">@AssignedChats</div>
+            <div class="button-caption">Assigned Chats</div>
+        </div>
+
+        <!-- Assigned Chats Button -->
+        <div class="button-container" style="background-color: #F97316;" @onclick="@(() => FilterChats(nameof(ChatStatus.Inprogress)))">
+            <div class="button-number">@Inprogress</div>
+            <div class="button-caption">Inprogress Chats</div>
+        </div>
+
+        <!-- Completed Chats Button -->
+        <div class="button-container" style="background-color: #22C55E;" @onclick="@(() => FilterChats(nameof(ChatStatus.Completed)))">
+            <div class="button-number">@CompletedChats</div>
+            <div class="button-caption">Completed Chats</div>
+        </div>
+    </div>
+</section>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>NAME</th>
+            <th>MESSAGE</th>
+            <th>STATUS</th>
+            <th>TIMESTAMP</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var chat in FilteredChats)
+        {
+            <tr>
+                <td>@chat.ChatSessionId</td>
+                <td>@chat.UserName</td>
+                <td>@chat.Message</td>
+                <td>@chat.Status</td>
+                <td>@chat.CreatedAt</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<ChatSession> Chats = new();
+    private List<ChatSession> FilteredChats = new();
+    private string CurrentFilter = "All";
+
+    private int TotalChats = 0;
+    private int PendingChats = 0;
+    private int InactiveChats = 0;
+    private int AssignedChats = 0;
+    private int Inprogress = 0;
+    private int CompletedChats = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadChats();
+        CountChats();
+    }
+
+    private async Task LoadChats()
+    {
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<ChatSession>>("api/chat/all");
+            if (result != null)
+            {
+                Chats = result;
+                FilterChats(CurrentFilter);
+            }
+        }
+        catch (Exception)
+        {
+            // Handle exceptions here if needed
+        }
+    }
+
+    private void CountChats()
+    {
+        TotalChats = Chats.Count;
+        PendingChats = Chats.Count(chat => chat.Status == ChatStatus.Pending);
+        InactiveChats = Chats.Count(chat => chat.Status == ChatStatus.Inactive);
+        AssignedChats = Chats.Count(chat => chat.Status == ChatStatus.Assigned);
+        Inprogress = Chats.Count(chat => chat.Status == ChatStatus.Inprogress);
+        CompletedChats = Chats.Count(chat => chat.Status == ChatStatus.Completed);
+    }
+
+    private void FilterChats(string status)
+    {
+        CurrentFilter = status;
+
+        FilteredChats = status switch
+        {
+            "All" => Chats,
+            nameof(ChatStatus.Pending) => Chats.Where(chat => chat.Status == ChatStatus.Pending).ToList(),
+            nameof(ChatStatus.Inactive) => Chats.Where(chat => chat.Status == ChatStatus.Inactive).ToList(),
+            nameof(ChatStatus.Assigned) => Chats.Where(chat => chat.Status == ChatStatus.Assigned).ToList(),
+            nameof(ChatStatus.Inprogress) => Chats.Where(chat => chat.Status == ChatStatus.Inprogress).ToList(),
+            nameof(ChatStatus.Completed) => Chats.Where(chat => chat.Status == ChatStatus.Completed).ToList(),
+            _ => Chats
+        };
+
+        StateHasChanged();
+    }
+}

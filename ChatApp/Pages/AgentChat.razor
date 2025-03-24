@@ -1,0 +1,214 @@
+﻿@page "/chat-assigned-to-agent"
+@using ChatApp.Domain.Entities
+@using ChatApp.UI.Services
+@inject HttpClient Http
+@inject SignalRService SignalRService
+
+<h3>Chat Assigned To Agent</h3>
+
+<!-- Dropdown to Select Agent -->
+<select class="form-select mb-3" @onchange="OnAgentSelectionChanged" value="@SelectedAgentId">
+    <option value="">-- Select Agent --</option>
+    @foreach (var agent in Agents)
+    {
+        <option value="@agent.Id">@agent.Name</option>
+    }
+</select>
+
+<!-- Chat Table -->
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>NAME</th>
+            <th>MESSAGE</th>
+            <th>STATUS</th>
+            <th>TIMESTAMP</th>
+            <th>UPDATE STATUS</th> <!-- Added Update Status Column -->
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var chat in FilteredChats)
+        {
+            <tr>
+                <td>@chat.ChatSessionId</td>
+                <td>@chat.UserName</td>
+                <td>@chat.Message</td>
+                <td>@chat.Status</td>
+                <td>@chat.CreatedAt</td>
+                <td><button class="btn btn-primary" @onclick="() => UpdateStatusToInProgress(chat.ChatSessionId)">Mark as In Progress</button></td> <!-- Button to Update Status -->
+                <td>
+                    <button class="btn btn-primary"
+                            @onclick="async () => await OnButtonClick(chat.ChatSessionId)">
+                        Mark as In Progress
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<p>@NotificationMessage</p>
+
+@code {
+    private List<ChatSession> Chats = new();
+    private List<ChatSession> FilteredChats = new();
+    private List<Agent> Agents = new(); // List of Agents
+    private int? SelectedAgentId;
+    private string NotificationMessage;
+    private List<string> messages = new();
+
+    private async Task OnButtonClick(Guid chatSessionId)
+    {
+        Console.WriteLine($"Button clicked for ChatSessionId: {chatSessionId}");
+        await UpdateStatusToInProgress(chatSessionId);
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        Console.WriteLine("Initializing...");
+
+        await LoadChats();
+        await LoadAgents(); // Load list of agents
+        SignalRService.OnMessageReceived += (user, message) =>
+        {
+            var encodedMsg = $"{user}: {message}";
+            messages.Add(encodedMsg);
+            InvokeAsync(StateHasChanged);  // Ensures UI updates in real-time
+        };
+
+        await SignalRService.StartConnection();
+
+        Console.WriteLine("Initialization complete.");
+    }
+
+    private async Task LoadChats()
+    {
+        try
+        {
+            Console.WriteLine("Loading chats...");
+            var result = await Http.GetFromJsonAsync<List<ChatSession>>("api/chat/all");
+            if (result != null)
+            {
+                Chats = result;
+                Console.WriteLine($"Loaded {Chats.Count} chats.");
+                FilterChatsByAgent();
+            }
+            else
+            {
+                Console.WriteLine("No chats returned.");
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationMessage = $"Error fetching chats: {ex.Message}";
+        }
+    }
+
+    private async Task LoadAgents()
+    {
+        try
+        {
+            Console.WriteLine("Loading agents...");
+            var result = await Http.GetFromJsonAsync<List<Agent>>("api/agent/");
+            if (result != null)
+            {
+                Agents = result;
+                Console.WriteLine($"Loaded {Agents.Count} agents.");
+            }
+            else
+            {
+                Console.WriteLine("No agents returned.");
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationMessage = $"Error fetching agents: {ex.Message}";
+        }
+    }
+
+    private void FilterChatsByAgent()
+    {
+        Console.WriteLine("Filtering chats by agent...");
+        FilteredChats = SelectedAgentId.HasValue
+            ? Chats.Where(chat => chat.AssignedAgentId == SelectedAgentId).ToList()
+            : Chats; // Show all chats if no agent is selected
+        StateHasChanged(); // Force re-render after filtering
+    }
+
+    private void MessageReceived(string message)
+    {
+        Console.WriteLine($"Message received: {message}");
+        NotificationMessage = message;
+        InvokeAsync(async () =>
+        {
+            await LoadChats();
+            StateHasChanged();
+        });
+    }
+
+    private void OnAgentSelectionChanged(ChangeEventArgs e)
+    {
+        var selectedValue = e.Value?.ToString();
+        Console.WriteLine($"Dropdown changed, selected value: {selectedValue}");
+
+        if (int.TryParse(selectedValue, out var agentId))
+        {
+            Console.WriteLine($"Selected Agent ID: {agentId}");
+            SelectedAgentId = agentId;
+        }
+        else
+        {
+            Console.WriteLine("No agent selected, showing all chats.");
+            SelectedAgentId = null; // Show all chats if nothing is selected
+        }
+
+        FilterChatsByAgent();
+    }
+
+    // Method to update the status to "In Progress"
+    private async Task UpdateStatusToInProgress(Guid chatSessionId)
+    {
+        Console.WriteLine($"Attempting to update status for ChatSessionId: {chatSessionId}");
+
+        try
+        {
+            var chatToUpdate = Chats.FirstOrDefault(c => c.ChatSessionId == chatSessionId);
+            if (chatToUpdate != null)
+            {
+                chatToUpdate.Status = Domain.Enum.Enum.ChatStatus.Inprogress;
+
+                var response = await Http.PutAsJsonAsync($"api/chat/{chatSessionId}/status", new { Status = "In Progress" });
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Status updated successfully for ChatSessionId: {chatSessionId}");
+                    NotificationMessage = "Status updated to In Progress";
+
+                    // Refresh the chats
+                    await LoadChats();
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Failed to update status. Server response: {errorContent}");
+                    NotificationMessage = $"Error updating status: {response.ReasonPhrase}";
+                }
+            }
+            else
+            {
+                Console.WriteLine($"Chat with ID {chatSessionId} not found.");
+                NotificationMessage = "Chat not found.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred: {ex.Message}");
+            NotificationMessage = $"Error updating status: {ex.Message}";
+        }
+
+        InvokeAsync(StateHasChanged);  // Ensure UI is updated after status change
+    }
+
+}

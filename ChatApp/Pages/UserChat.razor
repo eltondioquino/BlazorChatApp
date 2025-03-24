@@ -1,0 +1,156 @@
+﻿@page "/start-chat"
+@using ChatApp.Domain.Entities
+@using ChatApp.UI.Services
+@using System.ComponentModel.DataAnnotations
+@inject HttpClient Http
+@inject SignalRService SignalRService
+
+<h3 class="text-xl font-bold mb-4">Chat Box</h3>
+
+<div class="max-w-2xl mx-auto p-6 bg-blue-600 shadow-lg rounded-xl text-white space-y-4">
+
+    @if (ChatSessions.Count != 0)
+    {
+        <div class="border border-blue-700 rounded-lg p-4 mb-4 h-[400px] overflow-y-auto bg-blue-500">
+            <div id="chat-messages" class="space-y-3">
+                @foreach (var message in ChatSessions)
+                {
+                    <div class="flex items-start space-x-3">
+                        <div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-blue-600 font-bold">
+                            @message.UserName.Substring(0, 1).ToUpper()
+                        </div>
+                        <div class="flex flex-col">
+                            <div class="p-3 rounded-lg w-fit max-w-xs"
+                                 style="background-color: @(Input.UserName == message.UserName ? "#2563EB" : "#60A5FA"); color: white;">
+                                <strong>@message.UserName:</strong> @message.Message
+                            </div>
+                            <div class="text-[8px] text-gray-400 mt-1">Sent at: @message.CreatedAt.ToString("HH:mm:ss")</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <EditForm Model="Input" OnValidSubmit="StartChat" FormName="RequestChat">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="flex items-center mb-4">
+            <InputText @bind-Value="Input.UserName" id="Input.UserName" class="form-control w-full border border-blue-300 rounded-lg p-3 text-gray-800" placeholder="Enter your name." />
+        </div>
+
+        <div class="flex items-center mb-4">
+            <InputText @bind-Value="Input.Message" id="Input.Message" class="form-control w-full border border-blue-300 rounded-lg p-3 text-gray-800" placeholder="Enter your message..." />
+        </div>
+
+        <button type="submit" class="w-full btn btn-primary bg-blue-700 hover:bg-blue-800 text-white rounded-lg p-2 transition duration-200">Send</button>
+    </EditForm>
+
+
+    <div class="mt-4 p-3 bg-blue-400 rounded-lg text-black text-center">@NotificationMessage</div>
+
+
+</div>
+@code {
+    private ChatSession chatSession = new();
+    // private ChatSession chatSession = new ChatSession { UserName = "Test", Status = "Pending" };
+    // private string UserName = string.Empty;
+    private string NotificationMessage = string.Empty;
+
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+    private List<ChatSession> ChatSessions = new();
+    private List<string> messages = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        SignalRService.OnMessageReceived += (user, message) =>
+        {
+            var encodedMsg = $"{user}: {message}";
+            messages.Add(encodedMsg);
+            InvokeAsync(StateHasChanged);  // Ensures UI updates in real-time
+        };
+
+        await SignalRService.StartConnection();
+
+        await LoadAllMessages();
+    }
+
+    private void OnMessageReceived(string message)
+    {
+        NotificationMessage = message;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task StartChat()
+    {
+        if (string.IsNullOrWhiteSpace(Input.UserName))
+        {
+            NotificationMessage = "Please enter your name.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Input.Message))
+        {
+            NotificationMessage = "Please enter your message.";
+            return;
+        }
+
+        chatSession.UserName = Input.UserName;
+        chatSession.Message = Input.Message;
+
+        var response = await Http.PostAsJsonAsync("api/chat", chatSession);
+
+        if (response.IsSuccessStatusCode)
+        {
+            await SignalRService.SendMessage(chatSession.UserName, chatSession.Message);
+            Input.Message = string.Empty;
+            await LoadAllMessages();
+            NotificationMessage = "Chat started successfully!";
+
+        }
+        else
+        {
+            NotificationMessage = "Failed to start chat.";
+        }
+    }
+
+    private async Task LoadAllMessages()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<ChatSession>>("api/chat/all");
+
+            if (response != null)
+            {
+                ChatSessions = response.OrderBy(m => m.CreatedAt).ToList();
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            NotificationMessage = $"Error fetching chats: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            NotificationMessage = $"An unexpected error occurred: {ex.Message}";
+        }
+    }
+
+    private sealed class InputModel
+    {
+        public int Id { get; set; }
+
+        [Required(ErrorMessage = "Name is required.")]
+        public string UserName { get; set; }
+
+        [Required(ErrorMessage = "Message is required.")]
+        public string Message { get; set; }
+
+        public string Status { get; set; } = "Pending"; // Pending, Assigned, Completed
+        public int? AssignedAgentId { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? LastPolledAt { get; set; }
+    }
+}

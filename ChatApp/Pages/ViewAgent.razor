@@ -1,0 +1,269 @@
+﻿@page "/view-agents"
+@using ChatApp.Domain.Entities
+@using ChatApp.Domain.Helper
+@using static ChatApp.Domain.Enum.Enum
+@inject HttpClient Http
+
+<style>
+    .button-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #3B82F6; /* Blue */
+        color: white;
+        padding: 20px;
+        width: 150px;
+        height: 150px;
+        border-radius: 20px; /* Rounded Square */
+        transition: transform 0.3s, background-color 0.3s;
+        text-align: center;
+        margin-right: 20px; /* Space between buttons */
+    }
+
+        .button-container:hover {
+            background-color: #2563EB;
+            transform: scale(1.05);
+        }
+
+        .button-container:active {
+            transform: scale(0.95);
+        }
+
+    .button-number {
+        font-size: 2.5rem; /* Bigger Font */
+        font-weight: bold;
+    }
+
+    .button-caption {
+        font-size: 0.875rem; /* Smaller Caption */
+        margin-top: 8px;
+    }
+
+    .button-group {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 20px;
+    }
+</style>
+
+<h3>List of Agents</h3>
+
+<section class="agents p-4 space-y-4">
+    <div class="button-group">
+        <!-- TotalAgent Button -->
+        <div class="button-container" style="background-color: #3B82F6;" @onclick="@(() => FilterAgents("Total"))">
+            <div class="button-number">@TotalAgent</div>
+            <div class="button-caption">Total Number of Agents</div>
+        </div>
+
+        <!-- ActiveChat Button -->
+        <div class="button-container" style="background-color: #22C55E;" @onclick=@(() => FilterAgents("ActiveChat"))>
+            <div class="button-number">@ActiveChat</div>
+            <div class="button-caption">Active Chats</div>
+        </div>
+
+        <!-- ActiveAgent Button -->
+        <div class="button-container" style="background-color: #8B5CF6;" @onclick=@(() => FilterAgents("Active"))>
+            <div class="button-number">@ActiveAgent</div>
+            <div class="button-caption">Active Agents</div>
+        </div>
+
+        <!-- InactiveAgent Button -->
+        <div class="button-container" style="background-color: #6B7280;" @onclick=@(() => FilterAgents("Inactive"))>
+            <div class="button-number">@InActiveAgent</div>
+            <div class="button-caption">Inactive Agents</div>
+        </div>
+
+        <!-- DayShift Button -->
+        <div class="button-container" style="background-color: #F97316;" @onclick=@(() => FilterAgents("DayShift"))>
+            <div class="button-number">@DayShiftCount</div>
+            <div class="button-caption">Day Shift Agents</div>
+        </div>
+
+        <!-- MidShift Button -->
+        <div class="button-container" style="background-color: #EC4899;" @onclick=@(() => FilterAgents("MidShift"))>
+            <div class="button-number">@MidShiftCount</div>
+            <div class="button-caption">Mid Shift Agents</div>
+        </div>
+
+        <!-- InactiveAgent Button -->
+        <div class="button-container" style="background-color: #D1D5DB; color: black;" @onclick=@(() => FilterAgents("Overflow"))>
+            <div class="button-number">@OverflowCount</div>
+            <div class="button-caption">Overflow Agents</div>
+        </div>
+    </div>
+</section>
+
+<ul>
+    @foreach (var agent in AgentsActiveChats)
+    {
+        <li>@agent.Name - @agent.AgentLevel - Active Chats: @agent.CurrentChats</li>
+    }
+</ul>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>NAME</th>
+            <th>LEVEL</th>
+            <th>ACTIVE CHATS</th>
+            <th>IS ACTIVE</th>
+            <th>SHIFT SCHEDULE</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var agent in FilteredAgents)
+        {
+            <tr>
+                <td>@agent.Name</td>
+                <td>@agent.AgentLevel</td>
+                <td>@agent.CurrentChats</td>
+                <td>@(agent.IsActive ? "Yes" : "No")</td>
+                <td>
+                    @(agent.CurrentShift != null ? agent.CurrentShift.Name.GetDisplayName() : "No Shift Assigned")
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<Agent> Agents = new();
+    private List<Agent> AgentsActiveChats = new();
+    private List<Agent> FilteredAgents = new();
+    private string FilterType;
+
+    private int TotalAgent = 0;
+    private int ActiveChat = 0;
+    private int ActiveAgent = 0;
+    private int InActiveAgent = 0;
+
+    private int DayShiftCount = 0;
+    private int MidShiftCount = 0;
+    private int OverflowCount = 0;
+
+    private Timer _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load data once when the component is initialized
+        await GetAllAgent();
+        await GetAllActiveAgent();
+
+        TotalAgent = GetTotalAgents();
+        ActiveAgent = GetActiveAgents();
+        InActiveAgent = GetInactiveAgents();
+        ActiveChat = GetActiveChats();
+
+        CountShifts(); // Count agents per shift type
+
+        FilterAgents(FilterType); // Initialize the filter with all agents
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Set up the timer to reload the data every 5 seconds
+            _timer = new Timer(async _ => await ReloadData(), null, 0, 5000);
+
+            await GetAllAgent();
+            await GetAllActiveAgent();
+
+            TotalAgent = GetTotalAgents();
+            ActiveAgent = GetActiveAgents();
+            InActiveAgent = GetInactiveAgents();
+            ActiveChat = GetActiveChats();
+
+            CountShifts(); // Count agents per shift type
+
+            FilterAgents(FilterType); // Initialize the filter with all agents
+        }
+    }
+
+    // Dispose of the timer when the component is disposed
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+
+    private async Task ReloadData()
+    {
+        // Reload the agent data without reloading the entire page
+        await LoadData();
+        StateHasChanged(); // Trigger the UI update
+    }
+
+    private async Task LoadData()
+    {
+        await GetAllAgent();
+        await GetAllActiveAgent();
+
+        TotalAgent = GetTotalAgents();
+        ActiveAgent = GetActiveAgents();
+        InActiveAgent = GetInactiveAgents();
+        ActiveChat = GetActiveChats();
+
+        CountShifts(); // Count agents per shift type
+
+        FilterAgents(FilterType); // Initialize the filter with all agents
+    }
+
+    private async Task GetAllAgent()
+    {
+        Agents = await Http.GetFromJsonAsync<List<Agent>>("api/agent/");
+    }
+
+    private async Task GetAllActiveAgent()
+    {
+        AgentsActiveChats = await Http.GetFromJsonAsync<List<Agent>>("api/agent/activechat");
+    }
+
+    private int GetTotalAgents()
+    {
+        return Agents.Count();
+    }
+
+    private int GetActiveAgents()
+    {
+        return Agents.Count(agent => agent.IsActive);
+    }
+
+    private int GetInactiveAgents()
+    {
+        return Agents.Count(agent => !agent.IsActive);
+    }
+
+    private int GetActiveChats()
+    {
+        return Agents.Where(agent => agent.IsActive).Sum(agent => agent.CurrentChats);
+    }
+
+    private void CountShifts()
+    {
+        DayShiftCount = Agents.Count(agent => agent.CurrentShift?.Name == ShiftSchedule.DayShift);
+        MidShiftCount = Agents.Count(agent => agent.CurrentShift?.Name == ShiftSchedule.MidShift);
+        OverflowCount = Agents.Count(agent => agent.CurrentShift?.Name == ShiftSchedule.Overflow);
+    }
+
+    private void FilterAgents(string filterType)
+    {
+        FilterType = filterType;
+
+        FilteredAgents = filterType switch
+        {
+            "Total" => Agents,
+            "Active" => Agents.Where(agent => agent.IsActive).ToList(),
+            "Inactive" => Agents.Where(agent => !agent.IsActive).ToList(),
+            "ActiveChat" => Agents.Where(agent => agent.CurrentChats > 0).ToList(),
+            "DayShift" => Agents.Where(agent => agent.CurrentShift?.Name == ShiftSchedule.DayShift).ToList(),
+            "MidShift" => Agents.Where(agent => agent.CurrentShift?.Name == ShiftSchedule.MidShift).ToList(),
+            "Overflow" => Agents.Where(agent => agent.CurrentShift?.Name == ShiftSchedule.Overflow).ToList(),
+            _ => Agents
+        };
+
+        StateHasChanged(); // Trigger UI update
+    }
+}
