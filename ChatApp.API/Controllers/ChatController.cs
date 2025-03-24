@@ -38,6 +38,30 @@ namespace ChatApp.API.Controllers
             return Ok(new { message = "Chat session is active." });
         }
 
+        [HttpPost("getchatsessionid")]
+        public async Task<IActionResult> GetChatSessionByGuidAsync([FromBody] Guid sessionGuid)
+        {
+            var chatSession = await _chatService.GetChatSessionByGuidAsync(sessionGuid);
+
+            if (chatSession == null)
+            {
+                return NotFound("Chat session id not found.");
+            }
+
+            return Ok(chatSession);
+        }
+
+        [HttpPut("updatechatstatus")]
+        public async Task<IActionResult> UpdateChatStatus([FromBody] ChatSession chatSession)
+        {
+            var result = await _chatService.UpdateChatSessionStatusAsync(chatSession);
+
+            if (result)
+                return Ok(new { Message = "Status updated successfully." });
+
+            return NotFound(new { Message = "Chat Session not found." });
+        }
+
         [HttpGet("pending")]
         public async Task<IActionResult> GetPendingChats()
         {

@@ -45,5 +45,19 @@ namespace ChatApp.Repository
 
             return Task.CompletedTask;
         }
+
+        public Task UpdateChatSessionStatusAsync(ChatSession chatSession)
+        {
+            var existingChat = ChatSessions.FirstOrDefault(c => c.ChatSessionId == chatSession.ChatSessionId);
+
+            if (existingChat != null)
+            {
+                // Update the existing chat session
+                existingChat.Status = chatSession.Status;
+                existingChat.LastPolledAt = chatSession.LastPolledAt;
+            }
+
+            return Task.CompletedTask;
+        }
     }
 }

@@ -15,6 +15,8 @@ namespace ChatApp.Repository.Interface
         Task<bool> AssignChatToAgentAsync(ChatSession chatSession, Agent agent);
 
         Task<ChatSession?> GetChatSessionByGuidAsync(Guid sessionGuid);
+
         Task<bool> UpdateChatSessionAsync(ChatSession chatSession);
+        Task<bool> UpdateChatSessionStatusAsync(ChatSession chatSession);
     }
 }

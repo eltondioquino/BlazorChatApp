@@ -13,5 +13,6 @@ namespace ChatApp.Repository.Interface
         Task<List<ChatSession>> GetPendingChatsAsync();
         Task<List<ChatSession>> GetAllChatsAsync();
         Task UpdateChatSessionAsync(ChatSession chatSession);
+        Task UpdateChatSessionStatusAsync(ChatSession chatSession);
     }
 }

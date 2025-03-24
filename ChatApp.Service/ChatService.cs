@@ -54,5 +54,11 @@ namespace ChatApp.Service
             await _chatRepository.UpdateChatSessionAsync(chatSession);
             return true;
         }
+
+        public async Task<bool> UpdateChatSessionStatusAsync(ChatSession chatSession)
+        {
+            await _chatRepository.UpdateChatSessionStatusAsync(chatSession);
+            return true;
+        }
     }
 }

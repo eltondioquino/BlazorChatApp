@@ -36,11 +36,10 @@
                 <td>@chat.Message</td>
                 <td>@chat.Status</td>
                 <td>@chat.CreatedAt</td>
-                <td><button class="btn btn-primary" @onclick="() => UpdateStatusToInProgress(chat.ChatSessionId)">Mark as In Progress</button></td> <!-- Button to Update Status -->
+                @* <td><button class="btn btn-primary" @onclick="() => UpdateStatusToInProgress(chat.ChatSessionId)">Mark as In Progress</button></td> <!-- Button to Update Status --> *@
                 <td>
-                    <button class="btn btn-primary"
-                            @onclick="async () => await OnButtonClick(chat.ChatSessionId)">
-                        Mark as In Progress
+                    <button class="btn @(chat.Status == Domain.Enum.Enum.ChatStatus.Completed ? "btn-success" : "btn-primary")" @onclick="() => UpdateChatStatus(chat)">
+                        @(chat.Status == Domain.Enum.Enum.ChatStatus.Completed ? "Completed" : chat.Status == Domain.Enum.Enum.ChatStatus.Inprogress ? "Mark as Completed" : "Mark as In Progress")
                     </button>
                 </td>
             </tr>
@@ -57,13 +56,6 @@
     private int? SelectedAgentId;
     private string NotificationMessage;
     private List<string> messages = new();
-
-    private async Task OnButtonClick(Guid chatSessionId)
-    {
-        Console.WriteLine($"Button clicked for ChatSessionId: {chatSessionId}");
-        await UpdateStatusToInProgress(chatSessionId);
-    }
-
 
     protected override async Task OnInitializedAsync()
     {
@@ -167,48 +159,32 @@
         FilterChatsByAgent();
     }
 
-    // Method to update the status to "In Progress"
-    private async Task UpdateStatusToInProgress(Guid chatSessionId)
+    private async Task UpdateChatStatus(ChatSession chat)
     {
-        Console.WriteLine($"Attempting to update status for ChatSessionId: {chatSessionId}");
-
-        try
+        if (chat.Status == Domain.Enum.Enum.ChatStatus.Assigned)
         {
-            var chatToUpdate = Chats.FirstOrDefault(c => c.ChatSessionId == chatSessionId);
-            if (chatToUpdate != null)
-            {
-                chatToUpdate.Status = Domain.Enum.Enum.ChatStatus.Inprogress;
-
-                var response = await Http.PutAsJsonAsync($"api/chat/{chatSessionId}/status", new { Status = "In Progress" });
-
-                if (response.IsSuccessStatusCode)
-                {
-                    Console.WriteLine($"Status updated successfully for ChatSessionId: {chatSessionId}");
-                    NotificationMessage = "Status updated to In Progress";
-
-                    // Refresh the chats
-                    await LoadChats();
-                }
-                else
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"Failed to update status. Server response: {errorContent}");
-                    NotificationMessage = $"Error updating status: {response.ReasonPhrase}";
-                }
-            }
-            else
-            {
-                Console.WriteLine($"Chat with ID {chatSessionId} not found.");
-                NotificationMessage = "Chat not found.";
-            }
+            chat.Status = Domain.Enum.Enum.ChatStatus.Inprogress;
         }
-        catch (Exception ex)
+        else if (chat.Status == Domain.Enum.Enum.ChatStatus.Inprogress)
         {
-            Console.WriteLine($"Exception occurred: {ex.Message}");
-            NotificationMessage = $"Error updating status: {ex.Message}";
+            chat.Status = Domain.Enum.Enum.ChatStatus.Completed;
+        }
+        else if (chat.Status == Domain.Enum.Enum.ChatStatus.Completed)
+        {
+            chat.Status = Domain.Enum.Enum.ChatStatus.Inprogress;
         }
 
-        InvokeAsync(StateHasChanged);  // Ensure UI is updated after status change
+        var response = await Http.PutAsJsonAsync("api/chat/updatechatstatus", chat);
+        if (response.IsSuccessStatusCode)
+        {
+            NotificationMessage = $"Status updated to {chat.Status}";
+            await LoadChats();
+        }
+        else
+        {
+            NotificationMessage = "Error updating status.";
+        }
+
+        StateHasChanged();
     }
-
 }
