@@ -14,6 +14,8 @@ namespace ChatApp.Repository
     public class ChatRepository : IChatRepository
     {
         private static readonly ConcurrentBag<ChatSession> ChatSessions = new();
+        private static readonly ConcurrentBag<UserRequest> UserRequests = new();
+        private static readonly ConcurrentBag<RequestMessage> Messages = new();
 
         public Task AddChatSessionAsync(ChatSession chatSession)
         {
@@ -58,6 +60,32 @@ namespace ChatApp.Repository
             }
 
             return Task.CompletedTask;
+        }
+
+
+        /// Below code using the UserRequest
+
+        /// <summary>
+        /// CreateChatSessionAsync
+        /// </summary>
+        /// <param name="chatSession"></param>
+        /// <returns></returns>
+        public Task<UserRequest> CreateChatSessionAsync(UserRequest chatSession)
+        {
+            UserRequests.Add(chatSession);
+            return Task.FromResult(chatSession);
+        }
+
+        public Task<RequestMessage> CreateChatSessionMessageAsync(RequestMessage message)
+        {
+            Messages.Add(message);
+            return Task.FromResult(message);
+        }
+
+        public Task<UserRequest?> GetChatSessionByIdAsync(Guid chatSessionId)
+        {
+            var session = UserRequests.FirstOrDefault(s => s.ChatSessionId == chatSessionId);
+            return Task.FromResult(session);
         }
     }
 }

@@ -60,5 +60,23 @@ namespace ChatApp.Service
             await _chatRepository.UpdateChatSessionStatusAsync(chatSession);
             return true;
         }
+
+        /// Below code using User Request
+
+        public async Task<UserRequest> StartChatSessionAsync(UserRequest userRequest)
+        {
+            return await _chatRepository.CreateChatSessionAsync(userRequest);
+        }
+
+        public async Task<RequestMessage> CreateChatSessionMessageAsync(RequestMessage message)
+        {
+            return await _chatRepository.CreateChatSessionMessageAsync(message);
+        }
+
+        public Task<UserRequest?> GetChatSessionAsync(Guid chatSessionId)
+        {
+            return _chatRepository.GetChatSessionByIdAsync(chatSessionId);
+        }
     }
 }
+

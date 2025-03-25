@@ -88,8 +88,8 @@ namespace ChatApp.Repository
                 new User
                 {
                     Id = 1,
-                    FirstName = "John",
-                    LastName = "Doe",
+                    UserName = "User",
+                    Name = "John Doe",
                     Email = "john.doe@example.com",
                     PasswordHash = "hashedpassword123",
                     PhoneNumber = "123-456-7890",
@@ -101,8 +101,8 @@ namespace ChatApp.Repository
                 new User
                 {
                     Id = 2,
-                    FirstName = "Jane",
-                    LastName = "Smith",
+                    UserName = "Agent",
+                    Name = "Jane Smith",
                     Email = "jane.smith@example.com",
                     PasswordHash = "securepassword456",
                     PhoneNumber = "987-654-3210",
@@ -114,8 +114,8 @@ namespace ChatApp.Repository
                 new User
                 {
                     Id = 3,
-                    FirstName = "Alice",
-                    LastName = "Johnson",
+                    UserName = "Admin",
+                    Name = "Alice Johnson",
                     Email = "alice.johnson@example.com",
                     PasswordHash = "mypassword789",
                     PhoneNumber = "555-123-4567",

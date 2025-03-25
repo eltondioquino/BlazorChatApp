@@ -75,6 +75,49 @@ namespace ChatApp.API.Controllers
             var chats = await _chatService.GetAllChatsAsync();
             return Ok(chats);
         }
+
+
+        /// Below code using the UserRequest
+
+
+        [HttpPost("start")]
+        public async Task<IActionResult> StartChat([FromBody] UserRequest request)
+        {
+            // Create a new chat session
+            var chatSession = await _chatService.StartChatSessionAsync(request);
+
+            if (chatSession == null)
+            {
+                return StatusCode(500, "Failed to create chat session.");
+            }
+
+            return Ok(chatSession);
+        }
+
+        [HttpPost("addmessage")]
+        public async Task<IActionResult> AddMessage([FromBody] RequestMessage message)
+        {
+            // Create a new chat session
+            var chatSession = await _chatService.CreateChatSessionMessageAsync(message);
+
+            if (chatSession == null)
+            {
+                return StatusCode(500, "Failed to create message.");
+            }
+
+            return Ok(chatSession);
+        }
+
+        [HttpGet("history/{chatSessionId}")]
+        public async Task<IActionResult> GetChatHistory(Guid chatSessionId)
+        {
+            var chatSession = await _chatService.GetChatSessionAsync(chatSessionId);
+            if (chatSession == null)
+            {
+                return NotFound("Chat session not found.");
+            }
+            return Ok(chatSession);
+        }
     }
 
 }

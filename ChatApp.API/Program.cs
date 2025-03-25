@@ -20,12 +20,14 @@ builder.Services.AddControllers(); // Register controllers
 //builder.Services.AddScoped<IAgentService, AgentService>();
 
 //Repositories
+builder.Services.AddSingleton<IUserRepository, UserRepository>();
 builder.Services.AddSingleton<IAgentRepository, AgentRepository>();
 builder.Services.AddSingleton<IChatRepository, ChatRepository>();
 builder.Services.AddSingleton<IShiftRepository, ShiftRepository>();
 builder.Services.AddSingleton<ITeamRepository, TeamRepository>();
 
 //Services
+builder.Services.AddSingleton<IUserService, UserService>();
 builder.Services.AddSingleton<IAgentService, AgentService>();
 builder.Services.AddSingleton<IShiftService, ShiftService>();
 builder.Services.AddSingleton<IChatService, ChatService>();

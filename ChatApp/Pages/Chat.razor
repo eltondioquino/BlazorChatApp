@@ -1,0 +1,421 @@
+﻿@page "/chat"
+@using ChatApp.Domain.Entities
+@using ChatApp.UI.Services
+@using System.ComponentModel.DataAnnotations
+@using static ChatApp.Domain.Enum.Enum
+@inject HttpClient Http
+@inject SignalRService SignalRService
+
+<style>
+    .input-field {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    }
+
+    .input-field:focus {
+    border-color: #007bff;
+    }
+
+    .btn-primary {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+    }
+
+    .btn-primary:hover {
+    background-color: #0056b3;
+    }
+
+
+    /* Chat Container */
+    .chat-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 350px;
+    background: white;
+    box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    transition: height 0.3s ease-in-out;
+    }
+
+    /* Minimized Chat */
+    .chat-minimized {
+    height: 40px;
+    overflow: hidden;
+    }
+
+    /* Chat Header */
+    .chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #2563eb;
+    color: white;
+    padding: 10px;
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    }
+
+    /* Chat Messages (Scrollable) */
+    .chat-messages {
+    height: 300px;
+    overflow-y: auto;
+    padding: 10px;
+    background: #f7f7f7;
+    border-bottom: 1px solid #ddd;
+    }
+
+    /* Message Row */
+    .chat-message {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    }
+
+    /* User Icon */
+    .user-icon {
+    width: 24px;
+    height: 24px;
+    background: #ccc;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    }
+
+    /* Chat Bubble */
+    .chat-bubble {
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 14px;
+    max-width: 80%;
+    }
+
+    /* User Message */
+    .user-message {
+    background: #2563eb;
+    color: white;
+    align-self: flex-end;
+    }
+
+    /* Other User Message */
+    .other-message {
+    background: #E5E7EB;
+    color: black;
+    }
+
+    /* Chat Input */
+    .chat-input {
+    padding: 10px;
+    display: flex;
+    gap: 6px;
+    background: white;
+    border-top: 1px solid #ddd;
+    }
+
+    /* Input Fields */
+    .chat-input input {
+    flex: 1;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    }
+
+    /* Send Button */
+    .send-button {
+    background: #2563eb;
+    color: white;
+    font-size: 14px;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    }
+
+    .send-button:hover {
+    background: #1e4db7;
+    }
+</style>
+
+<h3 class="text-xl font-bold mb-4">Contact Support</h3>
+
+@if (!IsChatStarted)
+{
+    <div class="text-left text-gray-700 mb-4">
+        Submit a support request, and our agents will assist you.
+    </div>
+
+    <EditForm Model="UserInput" OnValidSubmit="ValidateUserAndCreateChat" class="max-w-md mx-auto bg-white p-4 md:p-6 rounded-lg shadow">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-red-500 mb-4" />
+
+        <div class="mb-3">
+            <InputText @bind-Value="UserInput.UserName" class="input-field" placeholder="Your Name" />
+        </div>
+        <div class="mb-3">
+            <InputText @bind-Value="UserInput.Email" class="input-field" placeholder="Your Email" />
+        </div>
+        <div class="mb-3">
+            <InputText @bind-Value="UserInput.Content" class="input-field" placeholder="Subject" />
+        </div>
+        <div class="mb-3">
+            <InputTextArea @bind-Value="UserInput.Message" class="input-field h-24" placeholder="Your Message" />
+        </div>
+        <div class="text-right">
+            <button type="submit" class="btn-primary">Create Request</button>
+        </div>
+    </EditForm>
+
+}
+else
+{
+    <!-- Chat Box -->
+    <div class="chat-container @(IsMinimized ? "chat-minimized" : "")">
+
+        <!-- Chat Header (Click to Minimize/Maximize) -->
+        <div class="chat-header" @onclick="ToggleChat">
+            <span>Chat</span>
+            <button style="background: transparent; border: none; color: white; cursor: pointer;">
+                @if (IsMinimized)
+                {
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5 15l7-7 7 7H5z" clip-rule="evenodd" />
+                    </svg> <!-- Expand Icon -->
+                }
+                else
+                {
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path fill-rule="evenodd" d="M19 9l-7 7-7-7h14z" clip-rule="evenodd" />
+                    </svg> <!-- Collapse Icon -->
+                }
+            </button>
+        </div>
+
+        @if (!IsMinimized)
+        {
+            <!-- Chat Messages (Scrollable) -->
+            <div class="chat-messages">
+                @if (ChatSessions.Messages.Count != 0)
+                {
+                    @foreach (var message in ChatSessions.Messages)
+                    {
+                        <div class="chat-message">
+                            <!-- User Icon -->
+                            <div class="user-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-600" viewBox="0 0 24 24" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M12 2a5 5 0 015 5v2a5 5 0 11-10 0V7a5 5 0 015-5zm-6 17a6 6 0 1112 0H6z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+
+                            <!-- Chat Bubble -->
+                            <div class="chat-bubble @(UserInput.UserName == message.MessageType ? "user-message" : "other-message")">
+                                <strong>@message.MessageType:</strong> @message.Message
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <!-- Chat Input Form -->
+            <div class="chat-input">
+                <input type="text" @bind="UserInput.Message" @onkeydown="HandleKeyPress" placeholder="Type a message..." />
+
+                <button @onclick="async () => await CreateNewChat()" class="send-button">Send</button>
+            </div>
+        }
+    </div>
+}
+
+
+
+@code {
+    private bool IsChatStarted = false;
+    private Guid ChatSessionId;
+    private string NotificationMessage = string.Empty;
+    private UserRequest ChatSessions = new();
+
+    private InputModel UserInput { get; set; } = new();
+    private User ExistingUser { get; set; } = new();
+
+    private bool IsMinimized = false;
+
+    private void ToggleChat()
+    {
+        IsMinimized = !IsMinimized;
+    }
+
+    private async Task ValidateUserAndCreateChat()
+    {
+        NotificationMessage = string.Empty;
+
+        // Step 1: Check if the user exists by email
+        var userResponse = await Http.GetAsync($"api/user/email/{UserInput.Email}");
+
+        if (userResponse.IsSuccessStatusCode)
+        {
+            // User exists, retrieve user details
+            ExistingUser = await userResponse.Content.ReadFromJsonAsync<User>();
+        }
+        else
+        {
+            // User does not exist, create a new user
+            var newUser = new User
+                {
+                    UserName = UserInput.UserName,
+                    Name = UserInput.UserName,
+                    Email = UserInput.Email,
+                    PasswordHash = "default_password_hash", // Replace with actual hashed password if necessary
+                    PhoneNumber = null,
+                    ProfilePictureUrl = null,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = null,
+                    Role = "User", // Assign default role
+                    IsActive = true
+                };
+
+            var createUserResponse = await Http.PostAsJsonAsync("api/users/addnewuser", newUser);
+            if (!createUserResponse.IsSuccessStatusCode)
+            {
+                NotificationMessage = "Failed to create user.";
+                return;
+            }
+
+            ExistingUser = await createUserResponse.Content.ReadFromJsonAsync<User>();
+        }
+
+        // Step 2: Create the Chat Session
+
+        // ✅ Reuse ChatSessionId
+        if (ChatSessionId == Guid.Empty)
+        {
+            ChatSessionId = Guid.NewGuid();
+        }
+
+        var message = new RequestMessage
+            {
+                ChatSessionId = ChatSessionId,
+                MessageId = 1,
+                Message = UserInput.Message,
+                MessageType = "User",
+                CreatedAt = DateTime.UtcNow
+            };
+
+        var newSession = new UserRequest
+            {
+                ChatSessionId = ChatSessionId, // ✅ Reusing ChatSessionId
+                UserId = ExistingUser.Id,
+                Status = ChatStatus.Pending,
+                Content = UserInput.Content,
+                Messages = new List<RequestMessage> { message },
+                CreatedAt = DateTime.UtcNow,
+                LastActiveTime = DateTime.UtcNow
+            };
+
+        var chatResponse = await Http.PostAsJsonAsync("api/chat/start", newSession);
+        if (chatResponse.IsSuccessStatusCode)
+        {
+            await CreateChat(message);
+
+            IsChatStarted = true;
+            await LoadAllMessages();
+        }
+        else
+        {
+            NotificationMessage = "Failed to start chat.";
+        }
+    }
+
+    private async Task CreateChat(RequestMessage message)
+    {
+        var result = await Http.PostAsJsonAsync("api/chat/addmessage", message);
+
+        if (!result.IsSuccessStatusCode)
+        {
+            NotificationMessage = "Failed to create message.";
+        }
+    }
+
+    private async Task CreateNewChat()
+    {
+        if (string.IsNullOrWhiteSpace(UserInput.Message))
+        {
+            NotificationMessage = "Please input message.";
+            return;
+        }
+
+        var message = new RequestMessage
+            {
+                ChatSessionId = ChatSessionId, // ✅ Ensuring it reuses the same ChatSessionId
+                MessageId = ChatSessions.Messages.Count + 1,
+                Message = UserInput.Message,
+                MessageType = "User",
+                CreatedAt = DateTime.UtcNow
+            };
+
+        var result = await Http.PostAsJsonAsync("api/chat/addmessage", message);
+
+        if (result.IsSuccessStatusCode)
+        {
+            ChatSessions.Messages.Add(message); // Update the UI with the new message
+            UserInput.Message = string.Empty;  // Clear input field
+        }
+        else
+        {
+            NotificationMessage = "Failed to create message.";
+        }
+    }
+
+    private async Task LoadAllMessages()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<UserRequest>($"api/chat/history/{ChatSessionId}");
+            if (response != null)
+            {
+                ChatSessions = response;
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationMessage = $"Error fetching chat history: {ex.Message}";
+        }
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await CreateNewChat();
+        }
+    }
+
+    private class InputModel
+    {
+        [Required]
+        public string UserName { get; set; }
+
+        [Required, EmailAddress]
+        public string Email { get; set; }
+
+        [Required]
+        public string Content { get; set; }
+
+        [Required]
+        public string Message { get; set; }
+    }
+}

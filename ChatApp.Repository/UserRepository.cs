@@ -38,8 +38,8 @@ namespace ChatApp.Repository
             var existingUser = Users.FirstOrDefault(u => u.Id == user.Id);
             if (existingUser != null)
             {
-                existingUser.FirstName = user.FirstName;
-                existingUser.LastName = user.LastName;
+                existingUser.UserName = user.UserName;
+                existingUser.Name = user.Name;
                 existingUser.Email = user.Email;
                 existingUser.IsActive = user.IsActive;
             }
