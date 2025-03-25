@@ -80,5 +80,51 @@ namespace ChatApp.Repository
 
             return agentShiftTeams;
         }
+
+        public static List<User> GenerateUsers()
+        {
+            return new List<User>
+            {
+                new User
+                {
+                    Id = 1,
+                    FirstName = "John",
+                    LastName = "Doe",
+                    Email = "john.doe@example.com",
+                    PasswordHash = "hashedpassword123",
+                    PhoneNumber = "123-456-7890",
+                    ProfilePictureUrl = "https://example.com/profile/john_doe.png",
+                    CreatedAt = DateTime.UtcNow,
+                    Role = "User",
+                    IsActive = true
+                },
+                new User
+                {
+                    Id = 2,
+                    FirstName = "Jane",
+                    LastName = "Smith",
+                    Email = "jane.smith@example.com",
+                    PasswordHash = "securepassword456",
+                    PhoneNumber = "987-654-3210",
+                    ProfilePictureUrl = "https://example.com/profile/jane_smith.png",
+                    CreatedAt = DateTime.UtcNow,
+                    Role = "Agent",
+                    IsActive = true
+                },
+                new User
+                {
+                    Id = 3,
+                    FirstName = "Alice",
+                    LastName = "Johnson",
+                    Email = "alice.johnson@example.com",
+                    PasswordHash = "mypassword789",
+                    PhoneNumber = "555-123-4567",
+                    ProfilePictureUrl = "https://example.com/profile/alice_johnson.png",
+                    CreatedAt = DateTime.UtcNow,
+                    Role = "Admin",
+                    IsActive = true
+                }
+            };
+        }
     }
 }
