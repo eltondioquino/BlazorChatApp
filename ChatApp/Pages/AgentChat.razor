@@ -6,8 +6,8 @@
 
 <h3>Chat Assigned To Agent</h3>
 
-<!-- Dropdown to Select Agent -->
-<select class="form-select mb-3" @onchange="OnAgentSelectionChanged" value="@SelectedAgentId">
+<!-- Agent Dropdown -->
+<select class="form-select mb-3" @onchange="OnAgentSelectionChanged">
     <option value="">-- Select Agent --</option>
     @foreach (var agent in Agents)
     {
@@ -15,16 +15,25 @@
     }
 </select>
 
+<!-- Status Dropdown -->
+<select class="form-select mb-3" @onchange="OnStatusSelectionChanged">
+    <option value="">-- Select Status --</option>
+    @foreach (var status in Enum.GetValues(typeof(Domain.Enum.Enum.ChatStatus)).Cast<Domain.Enum.Enum.ChatStatus>())
+    {
+        <option value="@status">@status</option>
+    }
+</select>
+
 <!-- Chat Table -->
 <table class="table">
     <thead>
         <tr>
-            <th>ID</th>
-            <th>NAME</th>
-            <th>MESSAGE</th>
-            <th>STATUS</th>
-            <th>TIMESTAMP</th>
-            <th>UPDATE STATUS</th> <!-- Added Update Status Column -->
+            <th @onclick="() => SortTable(nameof(ChatSession.ChatSessionId))">ID ⬍</th>
+            <th @onclick="() => SortTable(nameof(ChatSession.UserName))">NAME ⬍</th>
+            <th @onclick="() => SortTable(nameof(ChatSession.Message))">MESSAGE ⬍</th>
+            <th @onclick="() => SortTable(nameof(ChatSession.Status))">STATUS ⬍</th>
+            <th @onclick="() => SortTable(nameof(ChatSession.CreatedAt))">TIMESTAMP ⬍</th>
+            <th>UPDATE STATUS</th>
         </tr>
     </thead>
     <tbody>
@@ -36,10 +45,20 @@
                 <td>@chat.Message</td>
                 <td>@chat.Status</td>
                 <td>@chat.CreatedAt</td>
-                @* <td><button class="btn btn-primary" @onclick="() => UpdateStatusToInProgress(chat.ChatSessionId)">Mark as In Progress</button></td> <!-- Button to Update Status --> *@
                 <td>
-                    <button class="btn @(chat.Status == Domain.Enum.Enum.ChatStatus.Completed ? "btn-success" : "btn-primary")" @onclick="() => UpdateChatStatus(chat)">
-                        @(chat.Status == Domain.Enum.Enum.ChatStatus.Completed ? "Completed" : chat.Status == Domain.Enum.Enum.ChatStatus.Inprogress ? "Mark as Completed" : "Mark as In Progress")
+                    <button class="btn
+                        @(chat.Status == Domain.Enum.Enum.ChatStatus.Completed ? "btn-success" :
+                        chat.Status == Domain.Enum.Enum.ChatStatus.Inprogress ? "btn-warning" :
+                        chat.Status == Domain.Enum.Enum.ChatStatus.UnAssigned ? "btn-secondary" :
+                        "btn-primary")"
+                            @onclick="() => UpdateChatStatus(chat)">
+                        @(chat.Status == Domain.Enum.Enum.ChatStatus.Completed
+                            ? "Completed"
+                            : chat.Status == Domain.Enum.Enum.ChatStatus.Inprogress
+                            ? "Mark as Completed"
+                            : chat.Status == Domain.Enum.Enum.ChatStatus.UnAssigned
+                            ? "Assign to Agent"
+                            : "Mark as In Progress")
                     </button>
                 </td>
             </tr>
@@ -52,115 +71,37 @@
 @code {
     private List<ChatSession> Chats = new();
     private List<ChatSession> FilteredChats = new();
-    private List<Agent> Agents = new(); // List of Agents
+    private List<Agent> Agents = new();
     private int? SelectedAgentId;
+    private Domain.Enum.Enum.ChatStatus? SelectedStatus;
     private string NotificationMessage;
     private List<string> messages = new();
 
+    private string SortColumn = nameof(ChatSession.CreatedAt); // Default sort by date
+    private bool SortAscending = true;
+
     protected override async Task OnInitializedAsync()
     {
-        Console.WriteLine("Initializing...");
-
+        await LoadAgents();
         await LoadChats();
-        await LoadAgents(); // Load list of agents
+
         SignalRService.OnMessageReceived += (user, message) =>
         {
-            var encodedMsg = $"{user}: {message}";
-            messages.Add(encodedMsg);
-            InvokeAsync(StateHasChanged);  // Ensures UI updates in real-time
+            messages.Add($"{user}: {message}");
+            InvokeAsync(StateHasChanged);
         };
 
         await SignalRService.StartConnection();
-
-        Console.WriteLine("Initialization complete.");
-    }
-
-    private async Task LoadChats()
-    {
-        try
-        {
-            Console.WriteLine("Loading chats...");
-            var result = await Http.GetFromJsonAsync<List<ChatSession>>("api/chat/all");
-            if (result != null)
-            {
-                Chats = result;
-                Console.WriteLine($"Loaded {Chats.Count} chats.");
-                FilterChatsByAgent();
-            }
-            else
-            {
-                Console.WriteLine("No chats returned.");
-            }
-        }
-        catch (Exception ex)
-        {
-            NotificationMessage = $"Error fetching chats: {ex.Message}";
-        }
-    }
-
-    private async Task LoadAgents()
-    {
-        try
-        {
-            Console.WriteLine("Loading agents...");
-            var result = await Http.GetFromJsonAsync<List<Agent>>("api/agent/");
-            if (result != null)
-            {
-                Agents = result;
-                Console.WriteLine($"Loaded {Agents.Count} agents.");
-            }
-            else
-            {
-                Console.WriteLine("No agents returned.");
-            }
-        }
-        catch (Exception ex)
-        {
-            NotificationMessage = $"Error fetching agents: {ex.Message}";
-        }
-    }
-
-    private void FilterChatsByAgent()
-    {
-        Console.WriteLine("Filtering chats by agent...");
-        FilteredChats = SelectedAgentId.HasValue
-            ? Chats.Where(chat => chat.AssignedAgentId == SelectedAgentId).ToList()
-            : Chats; // Show all chats if no agent is selected
-        StateHasChanged(); // Force re-render after filtering
-    }
-
-    private void MessageReceived(string message)
-    {
-        Console.WriteLine($"Message received: {message}");
-        NotificationMessage = message;
-        InvokeAsync(async () =>
-        {
-            await LoadChats();
-            StateHasChanged();
-        });
-    }
-
-    private void OnAgentSelectionChanged(ChangeEventArgs e)
-    {
-        var selectedValue = e.Value?.ToString();
-        Console.WriteLine($"Dropdown changed, selected value: {selectedValue}");
-
-        if (int.TryParse(selectedValue, out var agentId))
-        {
-            Console.WriteLine($"Selected Agent ID: {agentId}");
-            SelectedAgentId = agentId;
-        }
-        else
-        {
-            Console.WriteLine("No agent selected, showing all chats.");
-            SelectedAgentId = null; // Show all chats if nothing is selected
-        }
-
-        FilterChatsByAgent();
     }
 
     private async Task UpdateChatStatus(ChatSession chat)
     {
+        if (chat.Status == Domain.Enum.Enum.ChatStatus.UnAssigned)
+        {
+            // Logic to assign the chat to an agent
+            return;
+        }
+
         if (chat.Status == Domain.Enum.Enum.ChatStatus.Assigned)
         {
             chat.Status = Domain.Enum.Enum.ChatStatus.Inprogress;
@@ -177,8 +118,12 @@
         var response = await Http.PutAsJsonAsync("api/chat/updatechatstatus", chat);
         if (response.IsSuccessStatusCode)
         {
+
+            var agent = await Http.PutAsJsonAsync("api/agent/concurrentchat", chat);
+            
+
             NotificationMessage = $"Status updated to {chat.Status}";
-            await LoadChats();
+            await LoadChats();  // Refresh the chat list
         }
         else
         {
@@ -186,5 +131,111 @@
         }
 
         StateHasChanged();
+    }
+
+    private async Task LoadChats()
+    {
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<ChatSession>>("api/chat/all");
+            if (result != null)
+            {
+                Chats = result;
+                FilterChatsAndSort();  // Apply filtering + sorting after loading
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationMessage = $"Error fetching chats: {ex.Message}";
+        }
+    }
+
+    private async Task LoadAgents()
+    {
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<Agent>>("api/agent/");
+            if (result != null)
+            {
+                Agents = result;
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationMessage = $"Error fetching agents: {ex.Message}";
+        }
+    }
+
+    private void FilterChatsAndSort()
+    {
+        // Apply filters
+        FilteredChats = Chats
+            .Where(chat => (!SelectedAgentId.HasValue || chat.AssignedAgentId == SelectedAgentId))
+            .Where(chat => (!SelectedStatus.HasValue || chat.Status == SelectedStatus))
+            .ToList();
+
+        // Apply sorting
+        if (!string.IsNullOrEmpty(SortColumn))
+        {
+            if (SortAscending)
+            {
+                FilteredChats = FilteredChats.OrderBy(chat => GetPropertyValue(chat, SortColumn)).ToList();
+            }
+            else
+            {
+                FilteredChats = FilteredChats.OrderByDescending(chat => GetPropertyValue(chat, SortColumn)).ToList();
+            }
+        }
+
+        StateHasChanged(); // Refresh UI
+    }
+
+    private object GetPropertyValue(ChatSession chat, string propertyName)
+    {
+        var property = typeof(ChatSession).GetProperty(propertyName);
+        return property?.GetValue(chat, null) ?? "";
+    }
+
+    private void OnAgentSelectionChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var agentId))
+        {
+            SelectedAgentId = agentId;
+        }
+        else
+        {
+            SelectedAgentId = null;
+        }
+
+        FilterChatsAndSort();
+    }
+
+    private void OnStatusSelectionChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<Domain.Enum.Enum.ChatStatus>(e.Value?.ToString(), out var status))
+        {
+            SelectedStatus = status;
+        }
+        else
+        {
+            SelectedStatus = null;
+        }
+
+        FilterChatsAndSort();
+    }
+
+    private void SortTable(string columnName)
+    {
+        if (SortColumn == columnName)
+        {
+            SortAscending = !SortAscending;  // Toggle sorting order
+        }
+        else
+        {
+            SortColumn = columnName;
+            SortAscending = true;
+        }
+
+        FilterChatsAndSort();
     }
 }

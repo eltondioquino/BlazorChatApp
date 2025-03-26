@@ -1,4 +1,5 @@
-﻿using ChatApp.Service.Interface;
+﻿using ChatApp.Domain.Entities;
+using ChatApp.Service.Interface;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ChatApp.API.Controllers
@@ -33,6 +34,13 @@ namespace ChatApp.API.Controllers
         {
             var agents = await _agentService.GetAgentsWithChatAsync();
             return Ok(agents);
+        }
+
+        [HttpGet("concurrentchat")]
+        public async Task<IActionResult> UpdateAgentCurrentChatAsync(Agent agent)
+        {
+            await _agentService.UpdateAgentAsync(agent);
+            return Ok();
         }
 
         [HttpGet("GetAgentShiftTeams")]
