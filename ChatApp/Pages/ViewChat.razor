@@ -67,6 +67,12 @@
             <div class="button-caption">Inactive Chats</div>
         </div>
 
+        <!-- UnAssign Chats Button -->
+        <div class="button-container" style="background-color: #D1D5DB; color: black;" @onclick="@(() => FilterChats(nameof(ChatStatus.UnAssigned)))">
+            <div class="button-number">@UnAssignedChats</div>
+            <div class="button-caption">UnAssigned Chats</div>
+        </div>
+
         <!-- Assigned Chats Button -->
         <div class="button-container" style="background-color: #8B5CF6;" @onclick="@(() => FilterChats(nameof(ChatStatus.Assigned)))">
             <div class="button-number">@AssignedChats</div>
@@ -120,6 +126,7 @@
     private int PendingChats = 0;
     private int InactiveChats = 0;
     private int AssignedChats = 0;
+    private int UnAssignedChats = 0;
     private int Inprogress = 0;
     private int CompletedChats = 0;
 
@@ -152,6 +159,7 @@
         PendingChats = Chats.Count(chat => chat.Status == ChatStatus.Pending);
         InactiveChats = Chats.Count(chat => chat.Status == ChatStatus.Inactive);
         AssignedChats = Chats.Count(chat => chat.Status == ChatStatus.Assigned);
+        UnAssignedChats = Chats.Count(chat => chat.Status == ChatStatus.UnAssigned);
         Inprogress = Chats.Count(chat => chat.Status == ChatStatus.Inprogress);
         CompletedChats = Chats.Count(chat => chat.Status == ChatStatus.Completed);
     }
@@ -165,6 +173,7 @@
             "All" => Chats,
             nameof(ChatStatus.Pending) => Chats.Where(chat => chat.Status == ChatStatus.Pending).ToList(),
             nameof(ChatStatus.Inactive) => Chats.Where(chat => chat.Status == ChatStatus.Inactive).ToList(),
+            nameof(ChatStatus.UnAssigned) => Chats.Where(chat => chat.Status == ChatStatus.UnAssigned).ToList(),
             nameof(ChatStatus.Assigned) => Chats.Where(chat => chat.Status == ChatStatus.Assigned).ToList(),
             nameof(ChatStatus.Inprogress) => Chats.Where(chat => chat.Status == ChatStatus.Inprogress).ToList(),
             nameof(ChatStatus.Completed) => Chats.Where(chat => chat.Status == ChatStatus.Completed).ToList(),

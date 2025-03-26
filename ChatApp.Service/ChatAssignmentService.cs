@@ -39,9 +39,28 @@ namespace ChatApp.Service.Implementations
         {
             while (!stoppingToken.IsCancellationRequested)
             {
+                await ProcessQueuedChatsAsync();
                 await ProcessChatsAsync();
                 await MonitorInactiveChatsAsync();
                 await Task.Delay(1000, stoppingToken);
+            }
+        }
+
+        private async Task ProcessQueuedChatsAsync()
+        {
+            while (_chatQueue.TryDequeue(out var chatSession))
+            {
+                var assignedAgent = await AssignAgentAsync(chatSession);
+                if (assignedAgent == null)
+                {
+                    chatSession.Status = ChatStatus.UnAssigned;
+                    await _chatRepository.UpdateChatSessionAsync(chatSession);
+                    await NotifyClients(chatSession.ChatSessionId.ToString(), "Chat is unassigned.");
+                }
+                else
+                {
+                    await NotifyClients(chatSession.ChatSessionId.ToString(), $"Chat assigned to agent {assignedAgent.Name}.");
+                }
             }
         }
 
@@ -52,86 +71,99 @@ namespace ChatApp.Service.Implementations
 
             if (!pendingChats.Any())
             {
-                _logger.LogInformation("No pending chats to process.");
+                _logger.LogWarning("No pending chat to process.");
                 return;
             }
 
-            if (!agents.Any())
+            int capacity = (int)agents.Sum(a => a.MaxConcurrency * GetSeniorityMultiplier(a.AgentLevel));
+            int maxQueueSize = (int)(capacity * 1.5);
+
+            if (pendingChats.Count() > maxQueueSize && IsOfficeHours())
             {
-                _logger.LogWarning("No available agents found. Checking overflow handling...");
+                _logger.LogWarning("Max queue size reached. Assigning overflow team.");
 
-                // Overflow Handling - Check if it's office hours
-                if (!IsOfficeHours())
-                {
-                    _logger.LogWarning("No agents available and it's outside office hours. Skipping chat assignment.");
-                    return;
-                }
-
-                // If during office hours, use overflow agents
-                agents = agents.Where(a => a.AgentLevel == AgentLevel.Junior).ToList();
-
-                if (!agents.Any())
-                {
-                    _logger.LogWarning("No overflow agents available. Unable to process chats.");
-                    return;
-                }
+                /// Create new overflow agent and assign the queue
             }
 
             foreach (var chatSession in pendingChats)
             {
-                var orderedAgents = agents
-                    .OrderBy(agent => agent.AgentLevel)
-                    .ThenBy(agent => agent.CurrentChats)
-                    .ToList();
-
-                var assignedAgent = orderedAgents.FirstOrDefault(agent => agent.CurrentChats < agent.MaxConcurrency);
-
-                if (assignedAgent != null)
+                var assignedAgent = await AssignAgentAsync(chatSession);
+                if (assignedAgent == null)
                 {
-                    assignedAgent.CurrentChats++;
-                    chatSession.Status = ChatStatus.Assigned;
-                    await _agentService.UpdateAgentAsync(assignedAgent);
+                    _logger.LogWarning($"No available agent for chat {chatSession.ChatSessionId}. Marking as unassigned.");
+                    chatSession.Status = ChatStatus.UnAssigned;
                     await _chatRepository.UpdateChatSessionAsync(chatSession);
-
-                    _logger.LogInformation($"Assigned chat {chatSession.ChatSessionId} to agent {assignedAgent.Name}.");
-                    await NotifyClients($"Chat {chatSession.ChatSessionId} assigned to agent {assignedAgent.Name}.");
+                    await NotifyClients(chatSession.ChatSessionId.ToString(), "Chat is unassigned.");
                 }
                 else
                 {
-                    _logger.LogWarning($"No available agent found for chat {chatSession.ChatSessionId}. Adding back to the queue.");
-                    _chatQueue.Enqueue(chatSession);  // Add back to queue for retry
+                    await NotifyClients(chatSession.ChatSessionId.ToString(), $"Chat assigned to agent {assignedAgent.Name}.");
                 }
             }
         }
 
-
-        private bool IsOfficeHours()
+        private async Task<Agent?> AssignAgentAsync(ChatSession chatSession)
         {
-            var currentHour = DateTime.UtcNow.Hour;
-            return currentHour >= 9 && currentHour < 17;
+            var agents = await _agentService.GetAvailableAgentsAsync();
+            var orderedAgents = agents.OrderBy(a => a.AgentLevel).ThenBy(a => a.CurrentChats).ToList();
+
+            var assignedAgent = orderedAgents.FirstOrDefault(a => a.CurrentChats < a.MaxConcurrency);
+
+            if (assignedAgent != null)
+            {
+                assignedAgent.CurrentChats++;
+                chatSession.Status = ChatStatus.Assigned;
+                chatSession.AssignedAgentId = assignedAgent.Id;
+
+                await _agentService.UpdateAgentAsync(assignedAgent);
+                await _chatRepository.UpdateChatSessionAsync(chatSession);
+                await NotifyClients(chatSession.ChatSessionId.ToString(), $"Chat assigned to agent {assignedAgent.Name}.");
+            }
+            else
+            {
+                chatSession.Status = ChatStatus.UnAssigned;
+                await _chatRepository.UpdateChatSessionAsync(chatSession);
+                await NotifyClients(chatSession.ChatSessionId.ToString(), "Chat is unassigned.");
+            }
+
+            return assignedAgent;
         }
 
         private async Task MonitorInactiveChatsAsync()
         {
             var pendingChats = await _chatRepository.GetPendingChatsAsync();
-
             foreach (var chat in pendingChats)
             {
-                // Check if chat is inactive (No polling within 3 seconds)
                 if ((DateTime.UtcNow - chat.LastActiveTime).TotalSeconds > 3)
                 {
-                    _logger.LogWarning($"Chat {chat.ChatSessionId} marked as inactive due to inactivity.");
                     chat.Status = ChatStatus.Inactive;
                     await _chatRepository.UpdateChatSessionAsync(chat);
-                    await NotifyClients($"Chat {chat.ChatSessionId} marked as inactive due to inactivity.");
+                    await NotifyClients(chat.ChatSessionId.ToString(), "Chat marked as inactive due to inactivity.");
                 }
             }
         }
 
-
-        private async Task NotifyClients(string message)
+        private bool IsOfficeHours()
         {
-            await _hubContext.Clients.All.SendAsync("ReceiveNotification", message);
+            var currentHour = DateTime.UtcNow.Hour;
+            return currentHour >= 8 && currentHour < 16;
+        }
+
+        private double GetSeniorityMultiplier(AgentLevel level)
+        {
+            return level switch
+            {
+                AgentLevel.Junior => 0.4,
+                AgentLevel.MidLevel => 0.6,
+                AgentLevel.Senior => 0.8,
+                AgentLevel.TeamLead => 0.5,
+                _ => 0.4
+            };
+        }
+
+        private async Task NotifyClients(string chatSessionId, string message)
+        {
+            await _hubContext.Clients.All.SendAsync("ReceiveNotification", chatSessionId, message);
         }
     }
 }

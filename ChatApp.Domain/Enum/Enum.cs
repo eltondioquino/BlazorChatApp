@@ -28,6 +28,7 @@ namespace ChatApp.Domain.Enum
         {
             Pending,
             Assigned,
+            UnAssigned,
             Inprogress,
             Inactive,
             Completed

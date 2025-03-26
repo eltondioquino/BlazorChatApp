@@ -7,6 +7,7 @@ namespace ChatApp.UI.Services
     {
         public HubConnection Connection { get; private set; }
         public event Action<string, string> OnMessageReceived;
+        public event Action<string, string>? OnNotificationReceived;
 
         public async Task StartConnection()
         {
@@ -19,6 +20,11 @@ namespace ChatApp.UI.Services
                 Connection.On<string, string>("ReceiveMessage", (user, message) =>
                 {
                     OnMessageReceived?.Invoke(user, message);
+                });
+
+                Connection.On<string, string>("ReceiveNotification", (chatSessionId, message) =>
+                {
+                    OnNotificationReceived?.Invoke(chatSessionId, message);
                 });
 
                 await Connection.StartAsync();

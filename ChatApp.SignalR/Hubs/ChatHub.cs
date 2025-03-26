@@ -8,5 +8,10 @@ namespace ChatApp.SignalR.Hubs
         {
             await Clients.All.SendAsync("ReceiveMessage", user, message);
         }
+
+        public async Task NotifyChatAssignment(string chatSessionId, string message)
+        {
+            await Clients.All.SendAsync("ReceiveNotification", chatSessionId, message);
+        }
     }
 }

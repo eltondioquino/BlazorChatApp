@@ -14,7 +14,7 @@ namespace ChatApp.Domain.Entities
         public string Name { get; set; }
         public AgentLevel AgentLevel { get; set; }
 
-        //public bool IsActive { get; set; } = true;
+        
         public int CurrentChats { get; set; } = 0;
         public int MaxConcurrency => (int)(10 * GetEfficiency(AgentLevel));
         public bool IsOnShift => CurrentShift != null && CurrentShift.IsActive;
@@ -30,7 +30,7 @@ namespace ChatApp.Domain.Entities
         };
 
 
-
+        public ShiftSchedule Schedule { get; set; }
         public Shift? CurrentShift { get; set; }
 
         // Renamed to avoid conflict
@@ -38,6 +38,7 @@ namespace ChatApp.Domain.Entities
 
         // Determines if the agent is active based on their shift or being an overflow agent
         public bool IsActive => IsCurrentlyOnShift || IsOverflowAgent();
+        public bool IsAvailable { get; set; }
 
         // Overflow agents are always active regardless of shift
         private bool IsOverflowAgent() => CurrentShift == null;

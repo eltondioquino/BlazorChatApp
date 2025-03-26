@@ -125,6 +125,20 @@
         }
 </style>
 
+<div>
+    <label>Number of Chats:</label>
+    <input type="number" @bind="ChatCount" min="1" max="100" />
+    <button class="btn btn-primary" @onclick="SimulateChatSessions">Send Chat Simulation</button>
+</div>
+<div>
+    <ul>
+        @foreach (var status in SimulationNotificatios)
+        {
+            <li>@status</li>
+        }
+    </ul>
+</div>
+
 <!-- Chat Box -->
 <div class="chat-container @(IsMinimized ? "chat-minimized" : "")">
 
@@ -167,6 +181,24 @@
                         <div class="chat-bubble @(Input.UserName == message.UserName ? "user-message" : "other-message")">
                             <strong>@message.UserName:</strong> @message.Message
                         </div>
+
+                        <!-- Notifications -->
+                        @if (Notifications.TryGetValue(chatSession.ChatSessionId.ToString(), out var notification))
+                        {
+                            <div class="notification other-message">
+                                🔔 @notification
+                            </div>
+                        }
+
+                        @*                         @if (messages.Any())
+                        {
+                            <div class="chat-bubble @(Input.UserName == message.UserName ? "user-message" : "other-message")">
+                                @foreach (var note in messages)
+                                {
+                                    <div class="notification">@note</div>
+                                }
+                            </div>
+                        } *@
                     </div>
                 }
             }
@@ -191,14 +223,17 @@
     // private ChatSession chatSession = new ChatSession { UserName = "Test", Status = "Pending" };
     // private string UserName = string.Empty;
     private string NotificationMessage = string.Empty;
-
+    private Dictionary<string, string> Notifications = new(); // Stores notifications separately
 
     [SupplyParameterFromForm]
     private InputModel Input { get; set; } = new();
     private List<ChatSession> ChatSessions = new();
     private List<string> messages = new();
+    private List<string> SimulationNotificatios = new();
+    private int ChatCount = 10;
 
-    private bool IsMinimized = true;
+
+    private bool IsMinimized = false;
 
     private void ToggleChat()
     {
@@ -213,6 +248,19 @@
             messages.Add(encodedMsg);
             InvokeAsync(StateHasChanged);  // Ensures UI updates in real-time
         };
+
+        //  SignalRService.OnNotificationReceived += (chatSessionId, message) =>
+        // {
+        //     var encodedMsg = $"{chatSessionId}: {message}";
+        //     messages.Add(encodedMsg);
+        //     InvokeAsync(StateHasChanged);
+        // };
+
+        SignalRService.OnNotificationReceived += (chatSessionId, message) =>
+         {
+             Notifications[chatSessionId] = message;
+             InvokeAsync(StateHasChanged);
+         };
 
         await SignalRService.StartConnection();
 
@@ -256,6 +304,37 @@
         {
             NotificationMessage = "Failed to start chat.";
         }
+    }
+
+    private async Task SimulateChatSessions()
+    {
+        for (int i = 1; i <= ChatCount; i++)
+        {
+            var chatSession = new ChatSession
+                {
+                    Id = i,
+                    UserName = $"User{i}",
+                    Message = $"Test message {i}",
+                    Status = Domain.Enum.Enum.ChatStatus.Pending,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+            var response = await Http.PostAsJsonAsync("api/chat", chatSession);
+
+            if (response.IsSuccessStatusCode)
+            {
+                await SignalRService.SendMessage(chatSession.UserName, chatSession.Message);
+                SimulationNotificatios.Add($"✅ Chat simulation {i} created successfully!");
+            }
+            else
+            {
+                SimulationNotificatios.Add($"❌ Failed to create chat simulation {i}.");
+            }
+
+            await Task.Delay(200); // Small delay to simulate real user input
+        }
+
+        await LoadAllMessages();
     }
 
     private async Task LoadAllMessages()
