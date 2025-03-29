@@ -16,8 +16,7 @@ namespace ChatApp.Repository.Interface
         Task UpdateChatSessionStatusAsync(ChatSession chatSession);
 
         /// Below code using the UserRequest
-        Task<UserRequest> CreateChatSessionAsync(UserRequest chatSession);
-        Task<RequestMessage> CreateChatSessionMessageAsync(RequestMessage message);
-        Task<UserRequest?> GetChatSessionByIdAsync(Guid chatSessionId);
+        Task<ChatSessionMessage> CreateChatSessionMessageAsync(ChatSessionMessage message);
+        Task<List<ChatSessionMessage>> GetChatSessionMessageIdAsync(Guid chatSessionId);
     }
 }

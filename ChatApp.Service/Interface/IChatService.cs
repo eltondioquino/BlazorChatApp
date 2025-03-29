@@ -20,9 +20,8 @@ namespace ChatApp.Repository.Interface
         Task<bool> UpdateChatSessionStatusAsync(ChatSession chatSession);
 
         /// Below code using UserRequests
-        Task<UserRequest> StartChatSessionAsync(UserRequest userRequest);
-        Task<RequestMessage> CreateChatSessionMessageAsync(RequestMessage message);
-        Task<UserRequest?> GetChatSessionAsync(Guid chatSessionId);
+        Task<ChatSessionMessage> CreateChatSessionMessageAsync(ChatSessionMessage message);
+        Task<List<ChatSessionMessage?>> GetChatSessionMessageIdAsync(Guid chatSessionId);
 
     }
 }

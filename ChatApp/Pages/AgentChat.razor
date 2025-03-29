@@ -1,10 +1,189 @@
 ﻿@page "/chat-assigned-to-agent"
 @using ChatApp.Domain.Entities
 @using ChatApp.UI.Services
+@using System.ComponentModel.DataAnnotations
 @inject HttpClient Http
 @inject SignalRService SignalRService
 
 <h3>Chat Assigned To Agent</h3>
+
+<style>
+
+    /* Chat Container */
+    .chat-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 350px;
+    background: white;
+    box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    transition: height 0.3s ease-in-out;
+    }
+
+    /* Minimized Chat */
+    .chat-minimized {
+    height: 40px;
+    overflow: hidden;
+    }
+
+    /* Chat Header */
+    .chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #2563eb;
+    color: white;
+    padding: 10px;
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    }
+
+    /* Chat Messages (Scrollable) */
+    .chat-messages {
+    height: 300px;
+    overflow-y: auto;
+    padding: 10px;
+    background: #f7f7f7;
+    border-bottom: 1px solid #ddd;
+    }
+
+    /* Message Row */
+    .chat-message {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    }
+
+    /* User Icon */
+    .user-icon {
+    width: 24px;
+    height: 24px;
+    background: #ccc;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    }
+
+    /* Chat Bubble */
+    .chat-bubble {
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 14px;
+    max-width: 80%;
+    }
+
+    /* User Message */
+    .user-message {
+    background: #2563eb;
+    color: white;
+    align-self: flex-end;
+    }
+
+    /* Other User Message */
+    .other-message {
+    background: #E5E7EB;
+    color: black;
+    }
+
+    /* Chat Input */
+    .chat-input {
+    padding: 10px;
+    display: flex;
+    gap: 6px;
+    background: white;
+    border-top: 1px solid #ddd;
+    }
+
+    /* Input Fields */
+    .chat-input input {
+    flex: 1;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    }
+
+    /* Send Button */
+    .send-button {
+    background: #2563eb;
+    color: white;
+    font-size: 14px;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    }
+
+    .send-button:hover {
+    background: #1e4db7;
+    }
+
+    /* Modal overlay (background) */
+    .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6); /* A darker overlay */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999; /* Ensure it is above other elements */
+    opacity: 0; /* Start hidden */
+    visibility: hidden; /* Start hidden */
+    transition: opacity 0.3s ease, visibility 0s 0.3s; /* Smooth transition */
+    }
+
+    /* Show the modal when class 'show' is added */
+    .modal-overlay.show {
+    opacity: 1; /* Show the overlay */
+    visibility: visible; /* Make it visible */
+    transition: opacity 0.3s ease, visibility 0s 0s; /* Smooth transition */
+    }
+
+    /* Modal container (the box) */
+    .modal {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 600px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    z-index: 10000; /* Make sure the modal is on top */
+    }
+
+    /* Close button */
+    .close-btn {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    }
+
+    /* Modal content area */
+    .modal-body {
+    max-height: 400px;
+    overflow-y: auto;
+    }
+
+    .modal-body ul {
+    list-style-type: none;
+    padding: 0;
+    }
+
+    .modal-body li {
+    margin-bottom: 10px;
+    }
+
+</style>
 
 <!-- Agent Dropdown -->
 <select class="form-select mb-3" @onchange="OnAgentSelectionChanged">
@@ -42,7 +221,18 @@
             <tr>
                 <td>@chat.ChatSessionId</td>
                 <td>@chat.UserName</td>
-                <td>@chat.Message</td>
+                @* <td>@chat.Message</td> *@
+                @* <td>
+                    <!-- Display 'View All Messages' link -->
+                    <a href="javascript:void(0);" @onclick="() => ViewAllMessages(chat.ChatSessionId)">
+                        View All Messages
+                    </a>
+                </td> *@
+                <td>
+                    <a href="javascript:void(0);" @onclick="() => LoadAllChatMessages(chat.ChatSessionId)">
+                        Open Chat
+                    </a>
+                </td>
                 <td>@chat.Status</td>
                 <td>@chat.CreatedAt</td>
                 <td>
@@ -51,14 +241,14 @@
                         chat.Status == Domain.Enum.Enum.ChatStatus.Inprogress ? "btn-warning" :
                         chat.Status == Domain.Enum.Enum.ChatStatus.UnAssigned ? "btn-secondary" :
                         "btn-primary")"
-                            @onclick="() => UpdateChatStatus(chat)">
+                    @onclick="() => UpdateChatStatus(chat)">
                         @(chat.Status == Domain.Enum.Enum.ChatStatus.Completed
-                            ? "Completed"
-                            : chat.Status == Domain.Enum.Enum.ChatStatus.Inprogress
-                            ? "Mark as Completed"
-                            : chat.Status == Domain.Enum.Enum.ChatStatus.UnAssigned
-                            ? "Assign to Agent"
-                            : "Mark as In Progress")
+                                            ? "Completed"
+                                            : chat.Status == Domain.Enum.Enum.ChatStatus.Inprogress
+                                            ? "Mark as Completed"
+                                            : chat.Status == Domain.Enum.Enum.ChatStatus.UnAssigned
+                                            ? "Assign to Agent"
+                                            : "Mark as In Progress")
                     </button>
                 </td>
             </tr>
@@ -66,32 +256,241 @@
     </tbody>
 </table>
 
+@if (showChat == true)
+{
+    <!-- Chat Box -->
+    <div class="chat-container @(IsMinimized ? "chat-minimized" : "")">
+
+        <!-- Chat Header (Click to Minimize/Maximize) -->
+        <div class="chat-header" @onclick="ToggleChat">
+            <span>Chat</span>
+            <button style="background: transparent; border: none; color: white; cursor: pointer;">
+                @if (IsMinimized)
+                {
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5 15l7-7 7 7H5z" clip-rule="evenodd" />
+                    </svg> <!-- Expand Icon -->
+                }
+                else
+                {
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path fill-rule="evenodd" d="M19 9l-7 7-7-7h14z" clip-rule="evenodd" />
+                    </svg> <!-- Collapse Icon -->
+                }
+            </button>
+        </div>
+
+        @if (!IsMinimized)
+        {
+            <!-- Chat Messages (Scrollable) -->
+            <div class="chat-messages">
+                @if (chatMessages.Count != 0)
+                {
+                    @foreach (var message in chatMessages)
+                    {
+                        <div class="chat-message">
+                            <!-- User Icon -->
+                            <div class="user-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-600" viewBox="0 0 24 24" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M12 2a5 5 0 015 5v2a5 5 0 11-10 0V7a5 5 0 015-5zm-6 17a6 6 0 1112 0H6z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+
+                            <!-- Chat Bubble -->
+                            <div class="chat-bubble @(UserInput.UserName == message.MessageType ? "user-message" : "other-message")">
+                                <strong>@message.MessageType:</strong> @message.Message
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <!-- Chat Input Form -->
+            <div class="chat-input">
+
+                <input type="hidden" @bind="UserInput.ChatSessionId" />
+
+                <input type="text" @bind="UserInput.Message" placeholder="Type a message..." />
+
+                <button @onclick="async () => await CreateNewChat()" class="send-button">Send</button>
+            </div>
+        }
+
+    </div>
+}
+
+
+@if (isModalVisible)
+{
+    <div class="modal-overlay show" @onclick="CloseModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h4>Chat Messages</h4>
+                <button @onclick="CloseModal" class="close-btn">X</button>
+            </div>
+            <div class="modal-body">
+                <ul>
+                    @foreach (var message in chatMessages)
+                    {
+                        <li><strong>@message.MessageType:</strong> @message.Message</li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+}
+
+
 <p>@NotificationMessage</p>
 
 @code {
+    private string user;
+    private string message;
+
     private List<ChatSession> Chats = new();
     private List<ChatSession> FilteredChats = new();
+    private List<ChatSessionMessage> chatMessages = new List<ChatSessionMessage>();
+    private InputModel UserInput { get; set; } = new();
+
     private List<Agent> Agents = new();
     private int? SelectedAgentId;
     private Domain.Enum.Enum.ChatStatus? SelectedStatus;
     private string NotificationMessage;
     private List<string> messages = new();
+    private bool isModalVisible = false;
 
     private string SortColumn = nameof(ChatSession.CreatedAt); // Default sort by date
     private bool SortAscending = true;
 
+    private bool showChat = false;
+    private bool IsMinimized = false;
+
+    // Called when the component is initialized
     protected override async Task OnInitializedAsync()
     {
+        // Start the SignalR connection when the component is initialized
+        await SignalRService.StartConnection();
+
+        // Subscribe to the event for receiving chat messages
+        SignalRService.OnChatReceived += OnChatReceived;
+
+        // Load other data
         await LoadAgents();
         await LoadChats();
+    }
 
-        SignalRService.OnMessageReceived += (user, message) =>
+    // Method to send a chat message
+    private async Task SendMessage(Guid chatSessionId)
+    {
+        if (!string.IsNullOrEmpty(user) && !string.IsNullOrEmpty(message))
         {
-            messages.Add($"{user}: {message}");
-            InvokeAsync(StateHasChanged);
-        };
+            var chatMessage = new ChatSessionMessage
+                {
+                    ChatSessionId = chatSessionId, // Use the same session ID that the user is in
+                    Message = message,
+                    MessageType = "User", // Assume the user is sending the message
+                    CreatedAt = DateTime.UtcNow
+                };
 
-        await SignalRService.StartConnection();
+            // Send the message using the SignalR service
+            await SignalRService.SendChatMessage(chatMessage);
+
+            // Optionally clear the message input
+            message = string.Empty;
+        }
+    }
+
+    // This method is called when a new chat message is received
+    private void OnChatReceived(ChatSessionMessage message)
+    {
+        // Check if the received message's ChatSessionId matches the current ChatSessionId
+        if (message.ChatSessionId == UserInput.ChatSessionId)
+        {
+            // Add the message to the chat session messages list
+            chatMessages.Add(message);
+
+            // Re-render the component to display the new message
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    // Cleanup event handlers when the component is disposed
+    public async ValueTask DisposeAsync()
+    {
+        SignalRService.OnChatReceived -= OnChatReceived;
+    }
+
+    private void ToggleChat()
+    {
+        IsMinimized = !IsMinimized;
+    }
+
+    private async Task ViewAllMessages(Guid chatSessionId)
+    {
+        try
+        {
+            // Fetch all chat messages for the selected session
+            chatMessages = await Http.GetFromJsonAsync<List<ChatSessionMessage>>($"api/chat/history/{chatSessionId}");
+            isModalVisible = true;  // Set the modal to be visible
+        }
+        catch (Exception ex)
+        {
+            NotificationMessage = $"Error fetching chat history: {ex.Message}";
+        }
+    }
+
+    private async Task LoadAllChatMessages(Guid chatSessionId)
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<ChatSessionMessage>>($"api/chat/history/{chatSessionId}");
+            if (response != null)
+            {
+                chatMessages = response;
+                showChat = true;
+                UserInput.ChatSessionId = chatSessionId;
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationMessage = $"Error fetching chat history: {ex.Message}";
+        }
+    }
+
+    private void CloseModal()
+    {
+        isModalVisible = false;  // Hide the modal
+    }
+
+    private async Task CreateNewChat()
+    {
+        if (string.IsNullOrWhiteSpace(UserInput.Message))
+        {
+            NotificationMessage = "Please input message.";
+            return;
+        }
+
+        var message = new ChatSessionMessage
+            {
+                ChatSessionId = UserInput.ChatSessionId, // ✅ Ensuring it reuses the same ChatSessionId
+                MessageId = chatMessages.Count + 1,
+                Message = UserInput.Message,
+                MessageType = "Agent",
+                CreatedAt = DateTime.UtcNow
+            };
+
+        var result = await Http.PostAsJsonAsync("api/chat/addmessage", message);
+
+        if (result.IsSuccessStatusCode)
+        {
+            // chatMessages.Add(message); // Add to chat history
+            await SignalRService.SendChatMessage(message); // Send Notification
+            UserInput.Message = string.Empty;  // Clear input field
+        }
+        else
+        {
+            NotificationMessage = "Failed to create message.";
+        }
     }
 
     private async Task UpdateChatStatus(ChatSession chat)
@@ -120,10 +519,13 @@
         {
 
             var agent = await Http.PutAsJsonAsync("api/agent/concurrentchat", chat);
-            
+
 
             NotificationMessage = $"Status updated to {chat.Status}";
             await LoadChats();  // Refresh the chat list
+
+            //Show chat history
+            await LoadAllChatMessages(chat.ChatSessionId); 
         }
         else
         {
@@ -237,5 +639,16 @@
         }
 
         FilterChatsAndSort();
+    }
+
+    private class InputModel
+    {
+        public Guid ChatSessionId { get; set; }
+
+        [Required]
+        public string UserName { get; set; }
+
+        [Required]
+        public string Message { get; set; }
     }
 }

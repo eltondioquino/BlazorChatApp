@@ -1,6 +1,8 @@
 ﻿using ChatApp.Domain.Entities;
 using ChatApp.Domain.Enum;
 using ChatApp.Repository.Interface;
+using ChatApp.SignalR.Hubs;
+using Microsoft.AspNetCore.SignalR;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,15 +15,21 @@ namespace ChatApp.Service
     public class ChatService : IChatService
     {
         private readonly IChatRepository _chatRepository;
+        private readonly IHubContext<ChatHub> _hubContext;
 
-        public ChatService(IChatRepository chatRepository)
+        public ChatService(IChatRepository chatRepository, 
+            IHubContext<ChatHub> hubContext)
         {
             _chatRepository = chatRepository;
+            _hubContext = hubContext;
         }
 
         public async Task<bool> AddChatSessionAsync(ChatSession chatSession)
         {
             await _chatRepository.AddChatSessionAsync(chatSession);
+
+            await NotifyClients(chatSession);
+
             return true;
         }
 
@@ -63,19 +71,19 @@ namespace ChatApp.Service
 
         /// Below code using User Request
 
-        public async Task<UserRequest> StartChatSessionAsync(UserRequest userRequest)
-        {
-            return await _chatRepository.CreateChatSessionAsync(userRequest);
-        }
-
-        public async Task<RequestMessage> CreateChatSessionMessageAsync(RequestMessage message)
+        public async Task<ChatSessionMessage> CreateChatSessionMessageAsync(ChatSessionMessage message)
         {
             return await _chatRepository.CreateChatSessionMessageAsync(message);
         }
 
-        public Task<UserRequest?> GetChatSessionAsync(Guid chatSessionId)
+        public Task<List<ChatSessionMessage?>> GetChatSessionMessageIdAsync(Guid chatSessionId)
         {
-            return _chatRepository.GetChatSessionByIdAsync(chatSessionId);
+            return _chatRepository.GetChatSessionMessageIdAsync(chatSessionId);
+        }
+
+        private async Task NotifyClients(ChatSession chatSession)
+        {
+            await _hubContext.Clients.All.SendAsync("ChatNotification", chatSession);
         }
     }
 }

@@ -10,119 +10,119 @@
 <style>
     /* Chat Box Container */
     .chat-container {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: 320px;
-        background: white;
-        box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
-        border-radius: 8px;
-        border: 1px solid #ddd;
-        display: flex;
-        flex-direction: column;
-        transition: height 0.3s ease-in-out;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 320px;
+    background: white;
+    box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    transition: height 0.3s ease-in-out;
     }
 
     /* Minimized Chat */
     .chat-minimized {
-        height: 40px;
-        overflow: hidden;
+    height: 40px;
+    overflow: hidden;
     }
 
     /* Chat Header */
     .chat-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: #2563eb;
-        color: white;
-        padding: 10px;
-        border-radius: 8px 8px 0 0;
-        cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #2563eb;
+    color: white;
+    padding: 10px;
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
     }
 
     /* Chat Messages (Scrollable) */
     .chat-messages {
-        height: 250px;
-        overflow-y: auto;
-        padding: 10px;
-        background: #f7f7f7;
-        border-bottom: 1px solid #ddd;
+    height: 250px;
+    overflow-y: auto;
+    padding: 10px;
+    background: #f7f7f7;
+    border-bottom: 1px solid #ddd;
     }
 
     /* Message Container */
     .chat-message {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
     }
 
     /* User Icon */
     .user-icon {
-        width: 24px;
-        height: 24px;
-        background: #ccc;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
+    width: 24px;
+    height: 24px;
+    background: #ccc;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
     }
 
     /* Chat Bubble */
     .chat-bubble {
-        padding: 8px 12px;
-        border-radius: 12px;
-        font-size: 14px;
-        max-width: 80%;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 14px;
+    max-width: 80%;
     }
 
     /* User Message */
     .user-message {
-        background: #2563eb;
-        color: white;
-        align-self: flex-end;
+    background: #2563eb;
+    color: white;
+    align-self: flex-end;
     }
 
     /* Other User Message */
     .other-message {
-        background: #E5E7EB;
-        color: black;
+    background: #E5E7EB;
+    color: black;
     }
 
     /* Chat Input */
     .chat-input {
-        padding: 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     }
 
-        /* Input Fields */
-        .chat-input input {
-            width: 100%;
-            padding: 8px;
-            font-size: 14px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
+    /* Input Fields */
+    .chat-input input {
+    width: 100%;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    }
 
     /* Send Button */
     .send-button {
-        width: 100%;
-        background: #2563eb;
-        color: white;
-        font-size: 14px;
-        padding: 8px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
+    width: 100%;
+    background: #2563eb;
+    color: white;
+    font-size: 14px;
+    padding: 8px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
     }
 
-        .send-button:hover {
-            background: #1e4db7;
-        }
+    .send-button:hover {
+    background: #1e4db7;
+    }
 </style>
 
 <div>
@@ -287,6 +287,7 @@
             return;
         }
 
+        chatSession.ChatSessionId = Guid.NewGuid();
         chatSession.UserName = Input.UserName;
         chatSession.Message = Input.Message;
 
@@ -295,6 +296,7 @@
         if (response.IsSuccessStatusCode)
         {
             await SignalRService.SendMessage(chatSession.UserName, chatSession.Message);
+            StateHasChanged();
             Input.Message = string.Empty;
             await LoadAllMessages();
             NotificationMessage = "Chat started successfully!";
@@ -312,6 +314,7 @@
         {
             var chatSession = new ChatSession
                 {
+                    ChatSessionId = Guid.NewGuid(),
                     Id = i,
                     UserName = $"User{i}",
                     Message = $"Test message {i}",

@@ -210,9 +210,9 @@ else
         {
             <!-- Chat Messages (Scrollable) -->
             <div class="chat-messages">
-                @if (ChatSessions.Messages.Count != 0)
+                @if (chatSessionMessages.Count != 0)
                 {
-                    @foreach (var message in ChatSessions.Messages)
+                    @foreach (var message in chatSessionMessages)
                     {
                         <div class="chat-message">
                             <!-- User Icon -->
@@ -244,15 +244,87 @@ else
 
 
 @code {
+    private string user;
+    private string message;
+
     private bool IsChatStarted = false;
     private Guid ChatSessionId;
     private string NotificationMessage = string.Empty;
-    private UserRequest ChatSessions = new();
+    private ChatSession chatSession = new();
+    private List<ChatSession> chatSessions = new();
+    private List<ChatSessionMessage> chatSessionMessages;
 
     private InputModel UserInput { get; set; } = new();
     private User ExistingUser { get; set; } = new();
 
     private bool IsMinimized = false;
+
+    // protected override async Task OnInitializedAsync()
+    // {
+    //     // Start the SignalR connection
+    //     await SignalRService.StartConnection();
+
+    //     // Subscribe to SignalR events before starting the connection
+    //     SignalRService.OnChatReceived += (message) =>
+    //     {
+    //         if (message.ChatSessionId == ChatSessionId)
+    //         {
+    //             chatSessionMessages.Add(message);
+    //             InvokeAsync(StateHasChanged);  // Ensures UI updates in real-time
+    //         }
+    //     };
+    // }
+
+    // Called when the component is initialized
+    protected override async Task OnInitializedAsync()
+    {
+        // Start the SignalR connection when the component is initialized
+        await SignalRService.StartConnection();
+
+        // Subscribe to the event for receiving chat messages
+        SignalRService.OnChatReceived += OnChatReceived;
+    }
+
+    // Method to send a chat message
+    private async Task SendMessage()
+    {
+        if (!string.IsNullOrEmpty(user) && !string.IsNullOrEmpty(message))
+        {
+            var chatMessage = new ChatSessionMessage
+                {
+                    ChatSessionId = ChatSessionId, // Use the same session ID that the user is in
+                    Message = message,
+                    MessageType = "User", // Assume the user is sending the message
+                    CreatedAt = DateTime.UtcNow
+                };
+
+            // Send the message using the SignalR service
+            await SignalRService.SendChatMessage(chatMessage);
+
+            // Optionally clear the message input
+            message = string.Empty;
+        }
+    }
+
+    // This method is called when a new chat message is received
+    private void OnChatReceived(ChatSessionMessage message)
+    {
+        // Check if the received message's ChatSessionId matches the current ChatSessionId
+        if (message.ChatSessionId == ChatSessionId)
+        {
+            // Add the message to the chat session messages list
+            chatSessionMessages.Add(message);
+
+            // Re-render the component to display the new message
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    // Cleanup event handlers when the component is disposed
+    public async ValueTask DisposeAsync()
+    {
+        SignalRService.OnChatReceived -= OnChatReceived;
+    }
 
     private void ToggleChat()
     {
@@ -306,7 +378,7 @@ else
             ChatSessionId = Guid.NewGuid();
         }
 
-        var message = new RequestMessage
+        var message = new ChatSessionMessage
             {
                 ChatSessionId = ChatSessionId,
                 MessageId = 1,
@@ -315,24 +387,26 @@ else
                 CreatedAt = DateTime.UtcNow
             };
 
-        var newSession = new UserRequest
+        var newSession = new ChatSession
             {
                 ChatSessionId = ChatSessionId, // ✅ Reusing ChatSessionId
-                UserId = ExistingUser.Id,
+                Id = ExistingUser.Id,
+                UserName = ExistingUser.UserName,
                 Status = ChatStatus.Pending,
-                Content = UserInput.Content,
-                Messages = new List<RequestMessage> { message },
+                Message = UserInput.Content,
+                Messages = new List<ChatSessionMessage> { message },
                 CreatedAt = DateTime.UtcNow,
                 LastActiveTime = DateTime.UtcNow
             };
 
-        var chatResponse = await Http.PostAsJsonAsync("api/chat/start", newSession);
+        var chatResponse = await Http.PostAsJsonAsync("api/chat", newSession);
         if (chatResponse.IsSuccessStatusCode)
         {
             await CreateChat(message);
+            await SignalRService.SendChatMessage(message);
 
             IsChatStarted = true;
-            await LoadAllMessages();
+            await LoadAllChatMessages();
         }
         else
         {
@@ -340,11 +414,11 @@ else
         }
     }
 
-    private async Task CreateChat(RequestMessage message)
+    private async Task CreateChat(ChatSessionMessage message)
     {
         var result = await Http.PostAsJsonAsync("api/chat/addmessage", message);
 
-        if (!result.IsSuccessStatusCode)
+        if (result.IsSuccessStatusCode)
         {
             NotificationMessage = "Failed to create message.";
         }
@@ -358,10 +432,10 @@ else
             return;
         }
 
-        var message = new RequestMessage
+        var message = new ChatSessionMessage
             {
                 ChatSessionId = ChatSessionId, // ✅ Ensuring it reuses the same ChatSessionId
-                MessageId = ChatSessions.Messages.Count + 1,
+                MessageId = chatSessionMessages.Count + 1,
                 Message = UserInput.Message,
                 MessageType = "User",
                 CreatedAt = DateTime.UtcNow
@@ -371,7 +445,10 @@ else
 
         if (result.IsSuccessStatusCode)
         {
-            ChatSessions.Messages.Add(message); // Update the UI with the new message
+            // chatSessionMessages.Add(message); // Add to chat history
+
+            await SignalRService.SendChatMessage(message); // Send Notification
+            // chatSession.Messages.Add(message); // Update the UI with the new message
             UserInput.Message = string.Empty;  // Clear input field
         }
         else
@@ -380,14 +457,14 @@ else
         }
     }
 
-    private async Task LoadAllMessages()
+    private async Task LoadAllChatMessages()
     {
         try
         {
-            var response = await Http.GetFromJsonAsync<UserRequest>($"api/chat/history/{ChatSessionId}");
+            var response = await Http.GetFromJsonAsync<List<ChatSessionMessage>>($"api/chat/history/{ChatSessionId}");
             if (response != null)
             {
-                ChatSessions = response;
+                chatSessionMessages = response;
             }
         }
         catch (Exception ex)

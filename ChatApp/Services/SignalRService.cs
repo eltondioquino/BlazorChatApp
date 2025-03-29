@@ -8,6 +8,7 @@ namespace ChatApp.UI.Services
         public HubConnection Connection { get; private set; }
         public event Action<string, string> OnMessageReceived;
         public event Action<string, string>? OnNotificationReceived;
+        public event Action<ChatSessionMessage>? OnChatReceived;
 
         public async Task StartConnection()
         {
@@ -27,6 +28,11 @@ namespace ChatApp.UI.Services
                     OnNotificationReceived?.Invoke(chatSessionId, message);
                 });
 
+                Connection.On<ChatSessionMessage>("ChatNotification", (message) =>
+                {
+                    OnChatReceived?.Invoke(message);
+                });
+
                 await Connection.StartAsync();
             }
         }
@@ -37,6 +43,16 @@ namespace ChatApp.UI.Services
             {
                 await Connection.SendAsync("SendMessage", user, message);
             }
+        }
+
+        public async Task SendChatMessage(ChatSessionMessage chatMessage)
+        {
+            //if (Connection != null && Connection.State == HubConnectionState.Connected)
+            //{
+            //    await Connection.SendAsync("ChatNotification", chatMessage);
+            //}
+
+            await Connection.SendAsync("ChatNotification", chatMessage);
         }
     }
 }
