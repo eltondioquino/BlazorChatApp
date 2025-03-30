@@ -22,6 +22,7 @@ namespace ChatApp.Service.Implementations
         private readonly IHubContext<ChatHub> _hubContext;
         private readonly ILogger<ChatAssignmentService> _logger;
         private static readonly ConcurrentQueue<ChatSession> _chatQueue = new();
+        private static readonly ConcurrentQueue<ChatSessionMessage> _chatMessageQueue = new();
 
         public ChatAssignmentService(
             IChatRepository chatRepository,
@@ -118,6 +119,18 @@ namespace ChatApp.Service.Implementations
                 await _agentService.UpdateAgentAsync(assignedAgent);
                 await _chatRepository.UpdateChatSessionAsync(chatSession);
                 await NotifyClients(chatSession.ChatSessionId.ToString(), $"Chat assigned to agent {assignedAgent.Name}.");
+
+
+                var message = new ChatSessionMessage
+                {
+                    ChatSessionId = chatSession.ChatSessionId, // ✅ Ensuring it reuses the same ChatSessionId
+                    MessageId = 0,
+                    Message = $"Request has been assigned to agent {assignedAgent.Name}.",
+                    MessageType = "Agent",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _chatRepository.CreateChatSessionMessageAsync(message);
             }
             else
             {

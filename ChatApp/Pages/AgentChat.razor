@@ -243,12 +243,12 @@
                         "btn-primary")"
                     @onclick="() => UpdateChatStatus(chat)">
                         @(chat.Status == Domain.Enum.Enum.ChatStatus.Completed
-                                            ? "Completed"
-                                            : chat.Status == Domain.Enum.Enum.ChatStatus.Inprogress
-                                            ? "Mark as Completed"
-                                            : chat.Status == Domain.Enum.Enum.ChatStatus.UnAssigned
-                                            ? "Assign to Agent"
-                                            : "Mark as In Progress")
+                                                ? "Completed"
+                                                : chat.Status == Domain.Enum.Enum.ChatStatus.Inprogress
+                                                ? "Mark as Completed"
+                                                : chat.Status == Domain.Enum.Enum.ChatStatus.UnAssigned
+                                                ? "Assign to Agent"
+                                                : "Mark as In Progress")
                     </button>
                 </td>
             </tr>
@@ -297,7 +297,7 @@
                             </div>
 
                             <!-- Chat Bubble -->
-                            <div class="chat-bubble @(UserInput.UserName == message.MessageType ? "user-message" : "other-message")">
+                            <div class="chat-bubble @(message.MessageType == "Agent" ? "user-message" : "other-message")">
                                 <strong>@message.MessageType:</strong> @message.Message
                             </div>
                         </div>
@@ -447,6 +447,7 @@
             if (response != null)
             {
                 chatMessages = response;
+                IsMinimized = false;
                 showChat = true;
                 UserInput.ChatSessionId = chatSessionId;
             }
